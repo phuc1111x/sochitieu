@@ -74,3 +74,24 @@ String formatLastBackup(DateTime t) {
   };
   return '${formatTime(t)} · $day';
 }
+
+/// Dấu trừ dùng khi hiển thị số âm (U+2212), rõ hơn gạch nối "-".
+const minusSign = '−';
+
+/// Số dư: âm thì có dấu "−" (ví dụ thẻ tín dụng đang nợ), dương thì không có dấu.
+String formatBalance(int amount) => '${amount < 0 ? minusSign : ''}${formatNumber(amount.abs())} đ';
+
+/// Số tiền có dấu trong lịch sử: "+15.000.000 đ" hoặc "−55.000 đ".
+String formatSigned(int amount) => '${amount < 0 ? minusSign : '+'}${formatNumber(amount.abs())} đ';
+
+/// Tiêu đề nhóm ngày trong lịch sử: "Hôm nay · 26/10", "Hôm qua · 25/10", "Thứ Sáu · 23/10".
+String historyDayLabel(DateTime today, DateTime d) {
+  final back = daysBefore(today, d);
+  final name = switch (back) {
+    0 => 'Hôm nay',
+    1 => 'Hôm qua',
+    _ => weekdayName(d),
+  };
+  final date = d.year == today.year ? formatDayMonth(d) : formatDate(d);
+  return '$name · $date';
+}

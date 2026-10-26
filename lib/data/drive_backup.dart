@@ -9,6 +9,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../config.dart';
 import '../models/expense.dart';
+import '../models/money_move.dart';
+import '../models/money_source.dart';
 import 'expense_db.dart';
 
 class BackupException implements Exception {
@@ -132,14 +134,8 @@ class DriveBackup {
 
   Future<void> backup({bool interactive = true}) async {
     final api = await _api(interactive: interactive);
-    final expenses = await ExpenseDb.instance.all();
     final now = DateTime.now();
-    final bytes = utf8.encode(jsonEncode({
-      'app': 'sochitieu',
-      'version': 1,
-      'exportedAt': now.toIso8601String(),
-      'expenses': [for (final e in expenses) e.toMap()..remove('id')],
-    }));
+    final bytes = utf8.encode(jsonEncode(await exportJson(ExpenseDb.instance, now)));
     final media = drive.Media(Stream.value(bytes), bytes.length, contentType: 'application/json');
 
     final existingId = await _findBackupFileId(api);
@@ -170,11 +166,66 @@ class DriveBackup {
       bytes.addAll(chunk);
     }
     final data = jsonDecode(utf8.decode(bytes)) as Map<String, dynamic>;
+    return importJson(ExpenseDb.instance, data);
+  }
+
+  static const _backupVersion = 2;
+
+  /// Nội dung file sao lưu. Phiên bản 2 thêm `sources` và `moves` (giữ id để các
+  /// khoản chi và giao dịch trỏ đúng nguồn), khoản chi có thêm `source_id`.
+  /// Dữ liệu được đọc trong một transaction nên không lẫn trạng thái cũ và mới.
+  @visibleForTesting
+  static Future<Map<String, Object?>> exportJson(ExpenseDb db, DateTime now) async {
+    final snap = await db.snapshot();
+    return {
+      'app': 'sochitieu',
+      'version': _backupVersion,
+      'exportedAt': now.toIso8601String(),
+      'expenses': [for (final e in snap.expenses) e.toMap()..remove('id')],
+      'sources': [for (final s in snap.sources) s.toMap()],
+      'moves': [for (final m in snap.moves) m.toMap()],
+    };
+  }
+
+  /// Thay dữ liệu trên máy bằng nội dung file sao lưu (đọc được cả phiên bản 1 và 2).
+  /// - Bản cũ (v1) không có nguồn tiền: nguồn tiền trở về một "Tiền mặt" mặc định, xoá giao dịch tiền.
+  /// - Bản từ app mới hơn (version > 2): từ chối trước khi đụng vào dữ liệu.
+  /// - Khoản chi trỏ tới nguồn không có trong file thì bỏ nguồn (NULL); giao dịch trỏ tới nguồn
+  ///   không có hoặc sai dạng so với loại của nó thì bỏ qua.
+  /// - Không còn nguồn nào đang dùng thì thêm "Tiền mặt"; luôn còn đúng một nguồn mặc định.
+  @visibleForTesting
+  static Future<int> importJson(ExpenseDb db, Map<String, dynamic> data) async {
+    final version = (data['version'] as num?)?.toInt() ?? 1;
+    if (version > _backupVersion) {
+      throw const BackupException('Bản sao lưu được tạo từ phiên bản app mới hơn. Hãy cập nhật app rồi thử lại.');
+    }
+    List<Map<String, Object?>> rows(String key) => [
+          for (final m in (data[key] as List?) ?? const []) Map<String, Object?>.from(m as Map),
+        ];
+    final sources = version >= 2 ? rows('sources').map(MoneySource.fromMap).toList() : <MoneySource>[];
+    final ids = {for (final s in sources) ?s.id};
     final expenses = [
-      for (final m in data['expenses'] as List) Expense.fromMap(Map<String, Object?>.from(m as Map)),
+      for (final e in rows('expenses').map(Expense.fromMap))
+        ids.contains(e.sourceId) ? e : e.copyWith(sourceId: null),
     ];
-    await ExpenseDb.instance.replaceAll(expenses);
+    final moves = [
+      if (version >= 2)
+        for (final m in rows('moves').map(MoneyMove.fromMap))
+          if (_fitsKind(m, ids)) m,
+    ];
+    await db.replaceAll(expenses, sources: sources, moves: moves);
     return expenses.length;
+  }
+
+  /// Giao dịch hợp lệ: nguồn tồn tại và đúng dạng theo loại (tiền vào / chuyển tiền / điều chỉnh).
+  static bool _fitsKind(MoneyMove m, Set<int> ids) {
+    bool known(int? id) => id != null && ids.contains(id);
+    return switch (m.kind) {
+      MoveKind.income => known(m.toId) && m.fromId == null && m.amount > 0,
+      MoveKind.move => known(m.fromId) && known(m.toId) && m.fromId != m.toId && m.amount > 0,
+      MoveKind.adjust => known(m.toId) && m.fromId == null,
+      _ => false,
+    };
   }
 
   /// Gọi khi mở app: tự sao lưu nếu đã bật và lần gần nhất cách đây hơn 1 ngày.

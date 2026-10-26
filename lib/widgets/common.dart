@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../data/expense_db.dart';
 import '../models/category.dart';
+import '../models/money_source.dart';
 import '../theme.dart';
 
 /// Tải dữ liệu từ database và tự tải lại khi dữ liệu thay đổi.
@@ -238,6 +239,36 @@ class CategoryIcon extends StatelessWidget {
       height: size,
       decoration: BoxDecoration(color: category.bg, borderRadius: BorderRadius.circular(size * 0.32)),
       child: Icon(category.icon, color: category.fg, size: size * 0.5),
+    );
+  }
+}
+
+class SourceIcon extends StatelessWidget {
+  const SourceIcon({super.key, required this.type, this.size = 44});
+
+  final SourceType type;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) => TintedIcon(icon: type.icon, fg: type.fg, bg: type.bg, size: size);
+}
+
+/// Ô vuông bo góc có nền nhạt và biểu tượng đậm cùng tông màu.
+class TintedIcon extends StatelessWidget {
+  const TintedIcon({super.key, required this.icon, required this.fg, required this.bg, this.size = 44});
+
+  final IconData icon;
+  final Color fg;
+  final Color bg;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(size * 0.32)),
+      child: Icon(icon, color: fg, size: size * 0.5),
     );
   }
 }

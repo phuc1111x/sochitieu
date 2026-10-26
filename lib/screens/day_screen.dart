@@ -88,11 +88,12 @@ class _DayPage extends StatelessWidget {
   final DateTime day;
   final int back;
 
-  Future<({List<Expense> items, int monthTotal})> _load() async {
+  Future<({List<Expense> items, int monthTotal, Map<int, String> sourceNames})> _load() async {
     final db = ExpenseDb.instance;
     final items = await db.byDay(day);
     final monthTotal = await db.monthTotal(day);
-    return (items: items, monthTotal: monthTotal);
+    final sourceNames = await db.sourceNames();
+    return (items: items, monthTotal: monthTotal, sourceNames: sourceNames);
   }
 
   @override
@@ -122,7 +123,9 @@ class _DayPage extends StatelessWidget {
             if (data.items.isEmpty)
               const EmptyState(text: 'Chưa có khoản chi nào trong ngày này.\nBấm "Thêm chi tiêu" để ghi lại.')
             else
-              ListCard(children: [for (final e in data.items) _ExpenseTile(expense: e)]),
+              ListCard(children: [
+                for (final e in data.items) _ExpenseTile(expense: e, sourceName: data.sourceNames[e.sourceId]),
+              ]),
           ],
         );
       },
@@ -131,14 +134,19 @@ class _DayPage extends StatelessWidget {
 }
 
 class _ExpenseTile extends StatelessWidget {
-  const _ExpenseTile({required this.expense});
+  const _ExpenseTile({required this.expense, this.sourceName});
 
   final Expense expense;
+
+  /// Tên nguồn đã trả; null với khoản chi cũ chưa gắn nguồn.
+  final String? sourceName;
 
   @override
   Widget build(BuildContext context) {
     final cat = categoryById(expense.category);
     final hasNote = expense.note.trim().isNotEmpty;
+    // Dòng phụ "Danh mục · Nguồn"; không có ghi chú thì tên danh mục đã nằm ở dòng chính.
+    final subtitle = [if (hasNote) cat.name, ?sourceName].join(' · ');
     return InkWell(
       onTap: () => openExpenseForm(context, expense: expense),
       child: Padding(
@@ -157,9 +165,14 @@ class _ExpenseTile extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
                   ),
-                  if (hasNote) ...[
+                  if (subtitle.isNotEmpty) ...[
                     const SizedBox(height: 2),
-                    Text(cat.name, style: const TextStyle(fontSize: 13, color: AppColors.muted)),
+                    Text(
+                      subtitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 13, color: AppColors.muted),
+                    ),
                   ],
                 ],
               ),

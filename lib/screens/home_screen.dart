@@ -5,6 +5,7 @@ import 'backup_screen.dart';
 import 'day_screen.dart';
 import 'expense_form_screen.dart';
 import 'month_screen.dart';
+import 'sources_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -48,6 +49,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         children: [
           DayScreen(key: _dayKey),
           MonthScreen(onOpenDay: _openDay),
+          const SourcesScreen(),
           const BackupScreen(),
         ],
       ),
@@ -67,6 +69,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         destinations: const [
           NavigationDestination(icon: Icon(Icons.calendar_today_outlined), label: 'Theo ngày'),
           NavigationDestination(icon: Icon(Icons.bar_chart_rounded), label: 'Theo tháng'),
+          NavigationDestination(icon: Icon(Icons.account_balance_wallet_outlined), label: 'Nguồn tiền'),
           NavigationDestination(icon: Icon(Icons.cloud_outlined), label: 'Sao lưu'),
         ],
       ),

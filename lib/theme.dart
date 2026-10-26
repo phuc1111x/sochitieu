@@ -12,6 +12,20 @@ class AppColors {
   static const divider = Color(0xFFEEF0F3);
   static const track = Color(0xFFEEF0F3);
   static const danger = Color(0xFFB42318);
+
+  /// Tiền vào (số dương trong lịch sử nguồn tiền) và nền nhạt đi kèm.
+  static const income = Color(0xFF15803D);
+  static const incomeSoft = Color(0xFFE8F5EC);
+
+  /// Màu xám trung tính cho biểu tượng "Khác", chuyển tiền, điều chỉnh số dư.
+  static const neutral = Color(0xFF475569);
+  static const neutralSoft = Color(0xFFEEF1F4);
+
+  /// Nền ô / dòng đang được chọn (màu chủ đạo 8%).
+  static const selectedFill = Color(0x140F766E);
+
+  /// Rãnh của nút chọn hai lựa chọn (Thêm tiền | Chuyển tiền).
+  static const segmentTrack = Color(0xFFE9EBEF);
 }
 
 ThemeData buildTheme() {

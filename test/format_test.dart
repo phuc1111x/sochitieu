@@ -27,4 +27,20 @@ void main() {
     expect(relativeDayLabel(1), 'Hôm qua');
     expect(relativeMonthLabel(3), '3 tháng trước');
   });
+
+  test('số dư và số tiền có dấu dùng dấu trừ U+2212', () {
+    expect(formatBalance(1205000), '1.205.000 đ');
+    expect(formatBalance(-2350000), '\u22122.350.000 đ');
+    expect(formatBalance(0), '0 đ');
+    expect(formatSigned(15000000), '+15.000.000 đ');
+    expect(formatSigned(-55000), '\u221255.000 đ');
+  });
+
+  test('nhãn ngày trong lịch sử nguồn tiền', () {
+    final today = DateTime(2026, 10, 26);
+    expect(historyDayLabel(today, today), 'Hôm nay · 26/10');
+    expect(historyDayLabel(today, DateTime(2026, 10, 25)), 'Hôm qua · 25/10');
+    expect(historyDayLabel(today, DateTime(2026, 10, 23)), 'Thứ Sáu · 23/10');
+    expect(historyDayLabel(today, DateTime(2025, 12, 31)), 'Thứ Tư · 31/12/2025');
+  });
 }
