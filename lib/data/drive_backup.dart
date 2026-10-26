@@ -33,6 +33,7 @@ class DriveBackup {
   static const _kLastBackup = 'last_backup_at';
   static const _kAuto = 'auto_backup';
   static const _kWifiOnly = 'wifi_only';
+  static const _kConnected = 'drive_connected';
 
   final _signIn = GoogleSignIn.instance;
 
@@ -63,7 +64,11 @@ class DriveBackup {
           GoogleSignInAuthenticationEventSignOut() => null,
         };
       }, onError: (Object e) => debugPrint('Google sign-in: $e'));
-      account.value = await _signIn.attemptLightweightAuthentication();
+      // Chỉ tự đăng nhập lại khi người dùng đã từng kết nối: nếu chưa,
+      // attemptLightweightAuthentication sẽ bật bảng chọn tài khoản mỗi lần mở app.
+      if (prefs.getBool(_kConnected) ?? false) {
+        account.value = await _signIn.attemptLightweightAuthentication();
+      }
     } catch (e) {
       debugPrint('Google sign-in init: $e');
     }
@@ -88,6 +93,7 @@ class DriveBackup {
       final user = await _signIn.authenticate(scopeHint: _scopes);
       account.value = user;
       await user.authorizationClient.authorizeScopes(_scopes);
+      await (await SharedPreferences.getInstance()).setBool(_kConnected, true);
     } on GoogleSignInException catch (e) {
       if (e.code == GoogleSignInExceptionCode.canceled) {
         throw const BackupException('Đã huỷ đăng nhập Google.');
@@ -99,6 +105,7 @@ class DriveBackup {
   Future<void> disconnect() async {
     await _signIn.disconnect();
     account.value = null;
+    await (await SharedPreferences.getInstance()).setBool(_kConnected, false);
   }
 
   Future<drive.DriveApi> _api({required bool interactive}) async {
