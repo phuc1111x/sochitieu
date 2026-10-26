@@ -96,10 +96,24 @@ class _MoneyFormScreenState extends State<MoneyFormScreen> {
 
   bool _exists(int? id) => id != null && _sources.any((s) => s.id == id);
 
+  /// Nguồn trả tiền khi chỉ chọn sẵn nguồn nhận (ví dụ "Trả thẻ"): nguồn mặc định nếu nó không phải
+  /// nguồn nhận và không phải thẻ tín dụng; nếu không thì nguồn đầu tiên không phải thẻ tín dụng; rồi
+  /// nguồn bất kỳ khác nguồn nhận; không còn nguồn nào khác thì giữ như cũ (chính nguồn nhận).
+  int _payerFor(int toId) {
+    final others = _active.where((s) => s.id != toId).toList();
+    for (final s in others) {
+      if (s.isDefault && !s.isCredit) return s.id!;
+    }
+    for (final s in others) {
+      if (!s.isCredit) return s.id!;
+    }
+    return others.isEmpty ? toId : others.first.id!;
+  }
+
   /// Chọn sẵn nguồn còn trống: tiền vào → nguồn mặc định; chuyển tiền → từ nguồn mặc định sang nguồn khác.
   void _fillDefaults() {
     if (_isMove) {
-      if (!_exists(_fromId)) _fromId = _exists(_toId) ? _toId : _defaultId;
+      if (!_exists(_fromId)) _fromId = _exists(_toId) ? _payerFor(_toId!) : _defaultId;
       if (!_exists(_toId) || _toId == _fromId) {
         _toId = _active.where((s) => s.id != _fromId).map((s) => s.id).firstOrNull;
       }

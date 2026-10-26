@@ -31,7 +31,12 @@ class _DbBuilderState<T> extends State<DbBuilder<T>> {
     super.dispose();
   }
 
-  void _reload() => setState(() => _future = widget.load());
+  void _reload() {
+    // Không dùng `setState(() => ...)`: phép gán trả về Future, setState sẽ báo lỗi ở bản debug.
+    setState(() {
+      _future = widget.load();
+    });
+  }
 
   @override
   Widget build(BuildContext context) => FutureBuilder<T>(
@@ -293,6 +298,48 @@ class EmptyState extends StatelessWidget {
           const SizedBox(height: 10),
           Text(text, textAlign: TextAlign.center, style: const TextStyle(fontSize: 14, color: AppColors.muted)),
         ],
+      ),
+    );
+  }
+}
+
+/// Thanh "% hạn mức đã dùng" của thẻ tín dụng: cam, chuyển đỏ khi từ 90 % trở lên.
+class UsageBar extends StatelessWidget {
+  const UsageBar({
+    super.key,
+    required this.percent,
+    required this.height,
+    required this.label,
+    this.track = AppColors.track,
+  });
+
+  final int percent;
+  final double height;
+
+  /// Câu đọc cho trình đọc màn hình, ví dụ "Đã dùng 24% hạn mức".
+  final String label;
+  final Color track;
+
+  static Color colorFor(int percent) => percent >= 90 ? AppColors.danger : AppColors.creditBar;
+
+  @override
+  Widget build(BuildContext context) {
+    final radius = BorderRadius.circular(height / 2);
+    return Semantics(
+      label: label,
+      image: true,
+      child: ExcludeSemantics(
+        child: Container(
+          width: double.infinity,
+          height: height,
+          clipBehavior: Clip.antiAlias,
+          decoration: BoxDecoration(color: track, borderRadius: radius),
+          child: FractionallySizedBox(
+            alignment: Alignment.centerLeft,
+            widthFactor: percent.clamp(0, 100) / 100,
+            child: DecoratedBox(decoration: BoxDecoration(color: colorFor(percent), borderRadius: radius)),
+          ),
+        ),
       ),
     );
   }

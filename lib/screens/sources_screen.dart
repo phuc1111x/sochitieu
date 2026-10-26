@@ -18,12 +18,13 @@ void showMessage(BuildContext context, String message) {
 }
 
 /// Mở "Chuyển tiền", nhưng chỉ khi có ít nhất hai nguồn tiền.
-Future<void> openTransfer(BuildContext context, List<MoneySource> active, {int? fromId}) async {
+/// [toId] chọn sẵn nguồn nhận (ví dụ "Trả thẻ": chuyển từ nguồn khác vào thẻ tín dụng).
+Future<void> openTransfer(BuildContext context, List<MoneySource> active, {int? fromId, int? toId}) async {
   if (active.length < 2) {
     showMessage(context, 'Cần ít nhất hai nguồn tiền để chuyển tiền');
     return;
   }
-  await openMoneyForm(context, kind: MoveKind.move, fromId: fromId);
+  await openMoneyForm(context, kind: MoveKind.move, fromId: fromId, toId: toId);
 }
 
 /// Màn "Nguồn tiền" (tab thứ 3). [asRoute] = mở từ form chi tiêu ("Quản lý"), có nút quay lại.
@@ -167,7 +168,13 @@ class ActionTile extends StatelessWidget {
     final children = [
       Icon(icon, color: AppColors.accent, size: vertical ? 22 : 20),
       SizedBox(width: vertical ? 0 : 8, height: vertical ? 6 : 0),
-      Text(label, style: TextStyle(fontSize: vertical ? 13 : 15, fontWeight: FontWeight.w600)),
+      // Màn hẹp hoặc chữ hệ thống to: thu nhỏ chữ thay vì tràn ra ngoài.
+      Flexible(
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(label, style: TextStyle(fontSize: vertical ? 13 : 15, fontWeight: FontWeight.w600)),
+        ),
+      ),
     ];
     return Material(
       color: AppColors.surface,
@@ -178,8 +185,9 @@ class ActionTile extends StatelessWidget {
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
         onTap: onTap,
-        child: SizedBox(
+        child: Container(
           height: vertical ? 72 : 52,
+          padding: const EdgeInsets.symmetric(horizontal: 6),
           child: vertical
               ? Column(mainAxisAlignment: MainAxisAlignment.center, children: children)
               : Row(mainAxisAlignment: MainAxisAlignment.center, children: children),
@@ -223,7 +231,23 @@ class _SourceTile extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
                   const SizedBox(height: 2),
-                  Text('${type.name}$extra', style: const TextStyle(fontSize: 13, color: AppColors.muted)),
+                  if (source.hasLimit) ...[
+                    // Thẻ có hạn mức: số còn được tiêu + thanh % đã dùng.
+                    // Giữ một dòng như bản thiết kế; màn hẹp thì thu nhỏ chữ một chút.
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Text('Còn được tiêu ${formatBalance(source.available)}',
+                          style: const TextStyle(fontSize: 13, color: AppColors.muted)),
+                    ),
+                    const SizedBox(height: 6),
+                    UsageBar(
+                      percent: source.usedPercent,
+                      height: 6,
+                      label: 'Đã dùng ${source.usedPercent}% hạn mức ${formatMoney(source.creditLimit!)}',
+                    ),
+                  ] else
+                    Text('${type.name}$extra', style: const TextStyle(fontSize: 13, color: AppColors.muted)),
                 ],
               ),
             ),

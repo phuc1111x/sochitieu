@@ -26,6 +26,16 @@ class AppColors {
 
   /// Rãnh của nút chọn hai lựa chọn (Thêm tiền | Chuyển tiền).
   static const segmentTrack = Color(0xFFE9EBEF);
+
+  /// Thanh % hạn mức thẻ tín dụng đã dùng (chuyển sang [danger] khi từ 90 % trở lên).
+  static const creditBar = Color(0xFFC2410C);
+
+  /// Nền nhạt của cảnh báo đỏ (vượt hạn mức).
+  static const dangerSoft = Color(0xFFFEF3F2);
+
+  /// Gạch chân ô nhập phụ (Tổng hạn mức) và nền ô xám nhạt (khung "App tự tính").
+  static const lineStrong = Color(0xFFC4C9D2);
+  static const fieldFill = Color(0xFFF8F9FA);
 }
 
 ThemeData buildTheme() {

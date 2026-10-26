@@ -79,6 +79,7 @@ class MoneySource {
     this.archived = false,
     required this.createdAt,
     this.balance = 0,
+    this.creditLimit,
   });
 
   final int? id;
@@ -94,9 +95,38 @@ class MoneySource {
   /// Số dư tính từ sổ cái (âm = đang nợ, ví dụ thẻ tín dụng).
   final int balance;
 
+  /// Tổng hạn mức của thẻ tín dụng (chỉ có với loại `credit`; thẻ tạo từ bản 0.2.0 có thể chưa có).
+  /// Đây là giá trị duy nhất được lưu: số nợ vẫn tính từ sổ cái, hạn mức còn lại = hạn mức + số dư.
+  final int? creditLimit;
+
   SourceType get sourceType => sourceTypeById(type);
 
-  MoneySource copyWith({String? name, String? type, bool? isDefault, bool? inTotal, bool? archived}) => MoneySource(
+  bool get isCredit => type == 'credit';
+
+  /// Thẻ tín dụng đã nhập tổng hạn mức: hiện "Còn được tiêu" và thanh % đã dùng.
+  bool get hasLimit => isCredit && (creditLimit ?? 0) > 0;
+
+  /// "Còn được tiêu" = tổng hạn mức + số dư (số dư âm = số nợ). Âm = đã vượt hạn mức.
+  int get available => (creditLimit ?? 0) + balance;
+
+  /// Phần trăm hạn mức đã dùng (0–100, làm tròn).
+  int get usedPercent {
+    final limit = creditLimit ?? 0;
+    return limit > 0 ? usedPercentOf(-balance, limit) : 0;
+  }
+
+  static const _keep = Object();
+
+  /// [creditLimit] truyền `null` để xoá hạn mức; bỏ trống để giữ nguyên.
+  MoneySource copyWith({
+    String? name,
+    String? type,
+    bool? isDefault,
+    bool? inTotal,
+    bool? archived,
+    Object? creditLimit = _keep,
+  }) =>
+      MoneySource(
         id: id,
         name: name ?? this.name,
         type: type ?? this.type,
@@ -105,6 +135,7 @@ class MoneySource {
         archived: archived ?? this.archived,
         createdAt: createdAt,
         balance: balance,
+        creditLimit: identical(creditLimit, _keep) ? this.creditLimit : creditLimit as int?,
       );
 
   Map<String, Object?> toMap() => {
@@ -115,6 +146,8 @@ class MoneySource {
         'in_total': inTotal ? 1 : 0,
         'archived': archived ? 1 : 0,
         'created_at': createdAt,
+        // Chỉ thẻ tín dụng có hạn mức: đổi sang loại khác thì hạn mức bị xoá (NULL).
+        'credit_limit': isCredit ? creditLimit : null,
       };
 
   factory MoneySource.fromMap(Map<String, Object?> m) => MoneySource(
@@ -126,5 +159,12 @@ class MoneySource {
         archived: (m['archived'] as num? ?? 0) != 0,
         createdAt: (m['created_at'] as num? ?? 0).toInt(),
         balance: (m['balance'] as num? ?? 0).toInt(),
+        creditLimit: (m['credit_limit'] as num?)?.toInt(),
       );
+}
+
+/// Phần trăm [debt] trên [limit], làm tròn và giới hạn trong 0–100 (dùng cho thanh hạn mức).
+int usedPercentOf(int debt, int limit) {
+  if (limit <= 0) return 0;
+  return (debt * 100 / limit).round().clamp(0, 100);
 }

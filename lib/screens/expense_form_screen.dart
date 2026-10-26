@@ -48,12 +48,28 @@ final _noSource = SourceType(
 
 /// Câu "Sau khi lưu, ..." dưới ô "Trả bằng", tách phần chữ và phần số tiền (số tiền âm tô đỏ):
 /// còn số dư → "còn 1.205.000 đ"; nguồn thường bị âm → "âm 500.000 đ"; thẻ tín dụng → "nợ 2.350.000 đ".
+/// Thẻ có hạn mức: "thẻ còn được tiêu 7.600.000 đ", vượt hạn mức thì "thẻ nợ 8.350.000 đ".
+/// [after] là số dư của nguồn sau khi lưu.
 @visibleForTesting
 ({String text, String amount, bool negative}) afterSaveParts(MoneySource source, int after) {
   final name = source.name;
+  if (source.hasLimit) {
+    final left = source.creditLimit! + after;
+    if (left >= 0) return (text: 'Sau khi lưu, thẻ còn được tiêu ', amount: formatBalance(left), negative: false);
+    return (text: 'Sau khi lưu, thẻ nợ ', amount: formatMoney(-after), negative: true);
+  }
   if (after >= 0) return (text: 'Sau khi lưu, $name còn ', amount: formatBalance(after), negative: false);
   if (source.type == 'credit') return (text: 'Sau khi lưu, $name nợ ', amount: formatMoney(-after), negative: true);
   return (text: 'Sau khi lưu, $name âm ', amount: formatMoney(-after), negative: true);
+}
+
+/// Câu cảnh báo khi khoản chi làm thẻ vượt hạn mức (vẫn cho lưu), hoặc `null` nếu không vượt.
+@visibleForTesting
+String? overLimitText(MoneySource source, int after) {
+  if (!source.hasLimit) return null;
+  final left = source.creditLimit! + after;
+  if (left >= 0) return null;
+  return 'Vượt hạn mức ${formatMoney(-left)}. Ngân hàng có thể từ chối giao dịch.';
 }
 
 class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
@@ -312,24 +328,56 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
               value: s.id,
               leading: (size) => SourceIcon(type: s.sourceType, size: size),
               title: s.name,
-              trailing: formatBalance(s.balance),
-              trailingColor: s.balance < 0 ? AppColors.danger : AppColors.muted,
+              // Thẻ có hạn mức: hiện số còn được tiêu thay cho số dư âm.
+              trailing: s.hasLimit ? 'còn ${formatBalance(s.available)}' : formatBalance(s.balance),
+              trailingColor: (s.hasLimit ? s.available : s.balance) < 0 ? AppColors.danger : AppColors.muted,
             ),
         ],
       ),
       if (selected != null) ...[
         const SizedBox(height: 10),
         Builder(builder: (context) {
-          final parts = afterSaveParts(selected, _balanceAfterSave(selected));
-          return Text.rich(
-            TextSpan(children: [
-              TextSpan(text: parts.text),
-              TextSpan(
-                text: parts.amount,
-                style: TextStyle(color: parts.negative ? AppColors.danger : AppColors.muted),
+          final after = _balanceAfterSave(selected);
+          final parts = afterSaveParts(selected, after);
+          final over = overLimitText(selected, after);
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text.rich(
+                TextSpan(children: [
+                  TextSpan(text: parts.text),
+                  TextSpan(
+                    text: parts.amount,
+                    style: TextStyle(color: parts.negative ? AppColors.danger : AppColors.muted),
+                  ),
+                ]),
+                style: const TextStyle(fontSize: 13, color: AppColors.muted),
               ),
-            ]),
-            style: const TextStyle(fontSize: 13, color: AppColors.muted),
+              if (over != null) ...[
+                const SizedBox(height: 10),
+                Semantics(
+                  liveRegion: true,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: AppColors.dangerSoft,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.warning_amber_rounded, size: 18, color: AppColors.danger),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(over,
+                              style: const TextStyle(
+                                  fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.danger)),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ],
           );
         }),
       ],

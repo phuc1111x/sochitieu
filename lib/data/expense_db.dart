@@ -37,7 +37,7 @@ class ExpenseDb {
   @visibleForTesting
   static set instance(ExpenseDb db) => _instance = db;
 
-  static const _version = 2;
+  static const _version = 3;
   static const defaultSourceName = 'Tiền mặt';
   static const openingNote = 'Số dư ban đầu';
   static const realBalanceNote = 'Số dư thực tế';
@@ -79,7 +79,10 @@ class ExpenseDb {
           if (oldVersion < 2) {
             // Khoản chi cũ giữ source_id = NULL: không tự gán vào nguồn nào.
             await db.execute('ALTER TABLE expenses ADD COLUMN source_id INTEGER');
-            await _createMoneyTables(db);
+            await _createMoneyTables(db); // đã có sẵn cột credit_limit
+          } else if (oldVersion < 3) {
+            // v3: tổng hạn mức thẻ tín dụng. Thẻ cũ giữ NULL (chưa nhập hạn mức).
+            await db.execute('ALTER TABLE sources ADD COLUMN credit_limit INTEGER');
           }
         },
       ),
@@ -95,7 +98,8 @@ class ExpenseDb {
         is_default INTEGER NOT NULL DEFAULT 0,
         in_total INTEGER NOT NULL DEFAULT 1,
         archived INTEGER NOT NULL DEFAULT 0,
-        created_at INTEGER NOT NULL
+        created_at INTEGER NOT NULL,
+        credit_limit INTEGER
       )
     ''');
     await db.execute('''
@@ -326,7 +330,8 @@ class ExpenseDb {
   }
 
   /// Thêm nguồn tiền. [openingBalance] khác 0 thì ghi một dòng điều chỉnh "Số dư ban đầu"
-  /// (thẻ tín dụng: truyền số âm = số nợ). Trả về id của nguồn mới.
+  /// (thẻ tín dụng: truyền số âm của số nợ, tức −(hạn mức − hạn mức còn lại)). Tổng hạn mức của thẻ
+  /// nằm trong `s.creditLimit`. Trả về id của nguồn mới.
   Future<int> insertSource(MoneySource s, {int openingBalance = 0}) async {
     final id = await (await db).transaction((txn) async {
       final id = await txn.insert('sources', s.toMap()..remove('id'));
@@ -340,7 +345,8 @@ class ExpenseDb {
     return id;
   }
 
-  /// Sửa nguồn tiền. [newBalance] khác số dư hiện tại thì ghi một dòng điều chỉnh
+  /// Sửa nguồn tiền (kể cả tổng hạn mức `s.creditLimit`; đổi hạn mức không ghi dòng sổ cái nào).
+  /// [newBalance] khác số dư hiện tại thì ghi một dòng điều chỉnh
   /// "Số dư thực tế" cho phần chênh lệch, đề ngày hôm nay.
   /// Luôn còn đúng một nguồn mặc định: tắt mặc định của nguồn mặc định duy nhất thì
   /// nguồn đầu tiên (có thể chính nó) được chọn lại.

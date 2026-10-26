@@ -58,7 +58,7 @@ class SourceDetailScreen extends StatelessWidget {
             actions: [
               if (!source.archived)
                 IconButton(
-                  tooltip: 'Sửa nguồn tiền',
+                  tooltip: source.hasLimit ? 'Sửa thẻ và hạn mức' : 'Sửa nguồn tiền',
                   icon: const Icon(Icons.edit_outlined),
                   onPressed: () => _edit(context, source),
                 ),
@@ -68,8 +68,43 @@ class SourceDetailScreen extends StatelessWidget {
           body: ListView(
             padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),
             children: [
-              _BalanceCard(source: source, inflow: data.flow.inflow, outflow: data.flow.outflow),
-              if (!source.archived) ...[
+              if (source.hasLimit)
+                _CreditCard(source: source)
+              else
+                _BalanceCard(source: source, inflow: data.flow.inflow, outflow: data.flow.outflow),
+              if (!source.archived && source.hasLimit) ...[
+                const SizedBox(height: 20),
+                Row(
+                  children: [
+                    Expanded(
+                      child: ActionTile(
+                        vertical: true,
+                        icon: Icons.check,
+                        label: 'Trả thẻ',
+                        onTap: () => openTransfer(context, data.active, toId: source.id),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: ActionTile(
+                        vertical: true,
+                        icon: Icons.add,
+                        label: 'Chi tiêu',
+                        onTap: () => openExpenseForm(context, sourceId: source.id),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: ActionTile(
+                        vertical: true,
+                        icon: Icons.edit_outlined,
+                        label: 'Sửa hạn mức',
+                        onTap: () => _edit(context, source),
+                      ),
+                    ),
+                  ],
+                ),
+              ] else if (!source.archived) ...[
                 const SizedBox(height: 20),
                 Row(
                   children: [
@@ -108,7 +143,7 @@ class SourceDetailScreen extends StatelessWidget {
               if (data.history.isEmpty)
                 const EmptyState(text: 'Chưa có giao dịch nào với nguồn tiền này.')
               else
-                ..._groups(context, data.history, data.names),
+                ..._groups(context, data.history, data.names, source),
             ],
           ),
         );
@@ -116,7 +151,7 @@ class SourceDetailScreen extends StatelessWidget {
     );
   }
 
-  List<Widget> _groups(BuildContext context, List<LedgerEntry> history, Map<int, String> names) {
+  List<Widget> _groups(BuildContext context, List<LedgerEntry> history, Map<int, String> names, MoneySource source) {
     final today = dateOnly(DateTime.now());
     final groups = <DateTime, List<LedgerEntry>>{};
     for (final e in history) {
@@ -131,7 +166,9 @@ class SourceDetailScreen extends StatelessWidget {
             style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.muted),
           ),
         ),
-        ListCard(children: [for (final e in g.value) _LedgerTile(entry: e, names: names)]),
+        ListCard(children: [
+          for (final e in g.value) _LedgerTile(entry: e, names: names, isCard: source.isCredit),
+        ]),
         const SizedBox(height: 10),
       ],
     ];
@@ -222,14 +259,112 @@ class _BalanceCard extends StatelessWidget {
   }
 }
 
+/// Đầu màn chi tiết thẻ tín dụng có hạn mức: "Còn được tiêu", thanh % đã dùng, "Đang nợ" / "Tổng hạn mức".
+class _CreditCard extends StatelessWidget {
+  const _CreditCard({required this.source});
+
+  final MoneySource source;
+
+  Widget _cell(String label, String value, Color color) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: const TextStyle(fontSize: 12, color: AppColors.muted)),
+          const SizedBox(height: 2),
+          Text(value, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: color)),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final available = source.available;
+    final debt = -source.balance;
+    final usedLabel = 'Đã dùng ${source.usedPercent}% hạn mức';
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.line),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 18, 16, 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    SourceIcon(type: source.sourceType, size: 48),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('Còn được tiêu',
+                              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: AppColors.muted)),
+                          const SizedBox(height: 2),
+                          FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              formatBalance(available),
+                              style: TextStyle(
+                                fontSize: 30,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: -0.5,
+                                height: 1.2,
+                                color: available < 0 ? AppColors.danger : AppColors.ink,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                UsageBar(percent: source.usedPercent, height: 10, label: usedLabel),
+                const SizedBox(height: 12),
+                Text(usedLabel, style: const TextStyle(fontSize: 13, color: AppColors.muted)),
+              ],
+            ),
+          ),
+          const Divider(height: 1, thickness: 1, color: AppColors.divider),
+          IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(
+                  child: _cell('Đang nợ', formatMoney(debt > 0 ? debt : 0), debt > 0 ? AppColors.danger : AppColors.ink),
+                ),
+                const VerticalDivider(width: 1, thickness: 1, color: AppColors.divider),
+                Expanded(child: _cell('Tổng hạn mức', formatMoney(source.creditLimit!), AppColors.ink)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 /// Chuyển tiền và điều chỉnh số dư dùng màu của loại nguồn "Khác".
 final _other = sourceTypeById('other');
 
 class _LedgerTile extends StatelessWidget {
-  const _LedgerTile({required this.entry, required this.names});
+  const _LedgerTile({required this.entry, required this.names, this.isCard = false});
 
   final LedgerEntry entry;
   final Map<int, String> names;
+
+  /// Lịch sử của thẻ tín dụng: tiền chuyển vào thẻ là "Trả thẻ".
+  final bool isCard;
 
   Future<void> _open(BuildContext context) async {
     final db = ExpenseDb.instance;
@@ -259,6 +394,11 @@ class _LedgerTile extends StatelessWidget {
             icon: Icons.download_outlined, fg: AppColors.income, bg: AppColors.incomeSoft, size: 40);
         title = note.isEmpty ? 'Thêm tiền' : note;
         kind = 'Thêm tiền';
+      case MoveKind.move when isCard && entry.amount > 0:
+        icon = const TintedIcon(icon: Icons.swap_horiz, fg: AppColors.income, bg: AppColors.incomeSoft, size: 40);
+        final other = names[entry.otherId] ?? '?';
+        title = note.isEmpty ? 'Trả thẻ từ $other' : '$note ← $other';
+        kind = 'Trả thẻ';
       case MoveKind.move:
         icon = TintedIcon(icon: Icons.swap_horiz, fg: _other.fg, bg: _other.bg, size: 40);
         final other = names[entry.otherId] ?? '?';

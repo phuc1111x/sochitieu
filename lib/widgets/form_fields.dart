@@ -18,12 +18,17 @@ void setAmount(TextEditingController c, int v) {
 
 /// Chỉ cho nhập số và tự thêm dấu chấm phân cách hàng nghìn: 50000 → 50.000.
 class ThousandsFormatter extends TextInputFormatter {
+  ThousandsFormatter({this.allowZero = false});
+
+  /// true: gõ "0" thì giữ lại số 0 thay vì xoá trống (ví dụ thẻ đã dùng hết hạn mức).
+  final bool allowZero;
+
   @override
   TextEditingValue formatEditUpdate(TextEditingValue oldValue, TextEditingValue newValue) {
     var digits = newValue.text.replaceAll(RegExp(r'\D'), '');
     if (digits.length > 12) digits = digits.substring(0, 12);
     final n = int.tryParse(digits) ?? 0;
-    final text = n == 0 ? '' : formatNumber(n);
+    final text = n == 0 ? (allowZero && digits.isNotEmpty ? '0' : '') : formatNumber(n);
     return TextEditingValue(text: text, selection: TextSelection.collapsed(offset: text.length));
   }
 }
@@ -132,6 +137,69 @@ class AmountCard extends StatelessWidget {
           ],
         ],
       ),
+    );
+  }
+}
+
+/// Ô nhập số tiền gọn (không khung) có nhãn nhỏ và gạch chân, dùng trong khung thẻ tín dụng:
+/// "Tổng hạn mức" (chữ vừa, gạch xám mảnh) và "Hạn mức còn lại" (chữ lớn, gạch màu chủ đạo).
+class MoneyLineField extends StatelessWidget {
+  const MoneyLineField({
+    super.key,
+    required this.controller,
+    required this.label,
+    this.fontSize = 34,
+    this.emphasized = true,
+    this.allowZero = false,
+    this.onChanged,
+  });
+
+  final TextEditingController controller;
+  final String label;
+  final double fontSize;
+
+  /// true: chữ đậm, gạch chân 2px màu chủ đạo; false: chữ vừa, gạch chân 1px xám.
+  final bool emphasized;
+  final bool allowZero;
+  final ValueChanged<String>? onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(label, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: AppColors.muted)),
+        Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: controller,
+                onChanged: onChanged,
+                keyboardType: TextInputType.number,
+                inputFormatters: [ThousandsFormatter(allowZero: allowZero)],
+                style: TextStyle(
+                  fontSize: fontSize,
+                  fontWeight: emphasized ? FontWeight.w700 : FontWeight.w600,
+                  letterSpacing: emphasized ? -0.5 : 0,
+                ),
+                decoration: InputDecoration(
+                  hintText: '0',
+                  border: InputBorder.none,
+                  isDense: true,
+                  contentPadding: EdgeInsets.symmetric(vertical: emphasized ? 8 : 6),
+                ),
+              ),
+            ),
+            Text('đ',
+                style: TextStyle(
+                    fontSize: emphasized ? 24 : 20, fontWeight: FontWeight.w600, color: AppColors.muted)),
+          ],
+        ),
+        Container(
+          height: emphasized ? 2 : 1,
+          color: emphasized ? AppColors.accent : AppColors.lineStrong,
+        ),
+      ],
     );
   }
 }

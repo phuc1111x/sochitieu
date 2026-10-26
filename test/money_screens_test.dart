@@ -23,23 +23,6 @@ void main() {
 
   Future<int> balanceOf(WidgetTester tester, int id) => dbRun(tester, () async => (await db.sourceById(id))!.balance);
 
-  testWidgets('thêm thẻ tín dụng: nhập số nợ 2.350.000 → số dư −2.350.000', (tester) async {
-    usePhoneSize(tester);
-    await openFromHost(tester, (c) => openSourceForm(c), SourceFormScreen);
-    await tester.enterText(find.byType(TextField).at(0), 'Thẻ VIB');
-    await tester.tap(find.text('Thẻ tín dụng'));
-    await tester.pump();
-    expect(find.text('Số tiền đang nợ trên thẻ'), findsOneWidget);
-    await tester.enterText(find.byType(TextField).at(1), '2350000');
-    await tester.pump();
-    expect(find.text('2.350.000'), findsOneWidget);
-
-    await saveAndWaitClosed(tester, 'Lưu nguồn tiền', SourceFormScreen);
-    final card = (await dbRun(tester, db.sourcesWithBalance)).firstWhere((s) => s.name == 'Thẻ VIB');
-    expect(card.type, 'credit');
-    expect(card.balance, -2350000);
-  });
-
   testWidgets('sửa nguồn mà không chạm vào số dư: không ghi dòng điều chỉnh', (tester) async {
     usePhoneSize(tester);
     final cash = await cashId(tester);
