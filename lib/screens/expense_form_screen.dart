@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../data/expense_db.dart';
+import '../data/payment_apps.dart';
 import '../models/category.dart';
 import '../models/expense.dart';
 import '../models/money_source.dart';
@@ -72,6 +73,14 @@ String? overLimitText(MoneySource source, int after) {
   return 'Vượt hạn mức ${formatMoney(-left)}. Ngân hàng có thể từ chối giao dịch.';
 }
 
+/// Cảnh báo khi nguồn thường (không phải thẻ tín dụng) không đủ tiền cho khoản chi này, hoặc `null`.
+/// Chỉ cảnh báo, vẫn cho lưu (số dư trong app có thể chưa cập nhật). Thẻ tín dụng dùng [overLimitText].
+@visibleForTesting
+String? shortText(MoneySource source, int after) {
+  if (source.isCredit || after >= 0) return null;
+  return 'Không đủ tiền trong ${source.name}, thiếu ${formatMoney(-after)}.';
+}
+
 class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
   static const _quickAmounts = [10000, 50000, 100000, 200000];
 
@@ -89,6 +98,18 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
   /// cho chọn "Không trừ vào nguồn nào".
   bool _noOriginalSource = false;
   bool _saving = false;
+
+  /// Ứng dụng thanh toán còn mở được, theo tên gói (chỉ đọc khi thêm mới).
+  Map<String, InstalledApp> _apps = const {};
+
+  /// Lần đọc ứng dụng mới nhất: kết quả của lần đọc cũ hơn (dữ liệu đổi giữa chừng) bị bỏ.
+  int _appsGeneration = 0;
+
+  /// Thêm mới: đã đọc xong ứng dụng lần đầu. Trước đó chưa cho bấm lưu, để thanh nút không
+  /// đổi từ "Lưu chi tiêu" sang "Chỉ lưu" + "Lưu & mở ..." ngay dưới tay người dùng.
+  bool _appsReady = false;
+
+  bool get _canSave => !_saving && (_isEdit || _appsReady);
 
   bool get _isEdit => widget.expense != null;
 
@@ -132,6 +153,35 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
         _sourceId = _noOriginalSource ? null : _pickInitial(usable);
       }
     });
+    if (!_isEdit) await _loadApps(usable);
+  }
+
+  /// Đọc tên + biểu tượng các ứng dụng thanh toán đã gắn; ứng dụng đã gỡ thì bỏ qua (nút lưu thường).
+  /// Lỗi khi đọc một ứng dụng thì bỏ qua ứng dụng đó.
+  Future<void> _loadApps(List<MoneySource> sources) async {
+    final generation = ++_appsGeneration;
+    final packages = {
+      for (final s in sources)
+        if (s.type != 'cash') ?s.appPackage,
+    };
+    final results = await Future.wait([
+      for (final pkg in packages)
+        PaymentApps.instance.appInfo(pkg).then<InstalledApp?>((app) => app, onError: (Object _) => null),
+    ]);
+    if (!mounted || generation != _appsGeneration) return;
+    setState(() {
+      _apps = {for (final app in results.nonNulls) app.package: app};
+      _appsReady = true;
+    });
+  }
+
+  /// Ứng dụng sẽ mở sau khi lưu: chỉ khi thêm mới và nguồn đang chọn có gắn ứng dụng còn trên máy.
+  InstalledApp? get _payApp {
+    final source = _selectedSource;
+    // Tiền mặt không mở ứng dụng, kể cả khi dòng cũ trong database còn sót tên gói.
+    if (_isEdit || source == null || source.type == 'cash') return null;
+    final pkg = source.appPackage;
+    return pkg == null ? null : _apps[pkg];
   }
 
   int? _pickInitial(List<MoneySource> usable) {
@@ -157,7 +207,8 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
     return base - _amountValue;
   }
 
-  Future<void> _save() async {
+  /// Lưu khoản chi. [payApp] khác null: lưu xong mở ứng dụng thanh toán đó ("Lưu & mở ...").
+  Future<void> _save({InstalledApp? payApp}) async {
     final amount = _amountValue;
     if (amount <= 0) {
       ScaffoldMessenger.of(context)
@@ -189,8 +240,13 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
         updatedAt: now,
       ));
     }
+    var message = _isEdit ? 'Đã lưu thay đổi' : 'Đã thêm ${formatMoney(amount)}';
+    // Khoản chi đã lưu rồi; mở ứng dụng không được thì chỉ báo lại.
+    if (payApp != null && !await PaymentApps.instance.launch(payApp.package)) {
+      message = 'Đã lưu. Không mở được ${payApp.label}.';
+    }
     if (!mounted) return;
-    Navigator.of(context).pop(_isEdit ? 'Đã lưu thay đổi' : 'Đã thêm ${formatMoney(amount)}');
+    Navigator.of(context).pop(message);
   }
 
   Future<void> _delete() async {
@@ -296,14 +352,56 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
         child: SafeArea(
           child: Padding(
             padding: const EdgeInsets.fromLTRB(20, 14, 20, 14),
-            child: FilledButton.icon(
-              onPressed: _saving ? null : _save,
-              icon: const Icon(Icons.check),
-              label: Text(_isEdit ? 'Lưu thay đổi' : 'Lưu chi tiêu'),
-            ),
+            child: _buildSaveButtons(),
           ),
         ),
       ),
+    );
+  }
+
+  /// Nguồn có gắn ứng dụng thanh toán: "Chỉ lưu" + "Lưu & mở {app}"; còn lại một nút lưu như cũ.
+  Widget _buildSaveButtons() {
+    final app = _payApp;
+    if (app == null) {
+      return FilledButton.icon(
+        onPressed: _canSave ? _save : null,
+        icon: const Icon(Icons.check),
+        label: Text(_isEdit ? 'Lưu thay đổi' : 'Lưu chi tiêu'),
+      );
+    }
+    const textStyle = TextStyle(fontFamily: 'BeVietnamPro', fontSize: 15, fontWeight: FontWeight.w600);
+    return Row(
+      children: [
+        SizedBox(
+          width: 108,
+          child: OutlinedButton(
+            onPressed: _canSave ? _save : null,
+            style: OutlinedButton.styleFrom(
+              padding: EdgeInsets.zero,
+              side: const BorderSide(color: AppColors.lineStrong),
+              textStyle: textStyle,
+            ),
+            child: const Text('Chỉ lưu'),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: FilledButton(
+            onPressed: _canSave ? () => _save(payApp: app) : null,
+            style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 14), textStyle: textStyle),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Flexible(
+                  child: Text('Lưu & mở ${app.label}', maxLines: 1, overflow: TextOverflow.ellipsis),
+                ),
+                const SizedBox(width: 8),
+                const Icon(Icons.open_in_new, size: 18),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -340,6 +438,7 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
           final after = _balanceAfterSave(selected);
           final parts = afterSaveParts(selected, after);
           final over = overLimitText(selected, after);
+          final short = shortText(selected, after);
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -353,6 +452,44 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
                 ]),
                 style: const TextStyle(fontSize: 13, color: AppColors.muted),
               ),
+              if (short != null) ...[
+                const SizedBox(height: 10),
+                Semantics(
+                  liveRegion: true,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: AppColors.dangerSoft,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Padding(
+                          padding: EdgeInsets.only(top: 1),
+                          child: Icon(Icons.warning_amber_rounded, size: 18, color: AppColors.danger),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(short,
+                                  style: const TextStyle(
+                                      fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.danger)),
+                              const SizedBox(height: 2),
+                              const Text(
+                                'Chọn nguồn khác ở trên. Vẫn lưu được nếu số dư trong app chưa cập nhật.',
+                                style: TextStyle(fontSize: 12, height: 1.45, color: AppColors.dangerInk),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
               if (over != null) ...[
                 const SizedBox(height: 10),
                 Semantics(

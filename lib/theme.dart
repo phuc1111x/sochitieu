@@ -33,6 +33,18 @@ class AppColors {
   /// Nền nhạt của cảnh báo đỏ (vượt hạn mức).
   static const dangerSoft = Color(0xFFFEF3F2);
 
+  /// Chữ phụ trong cảnh báo đỏ ("Chọn nguồn khác ở trên...").
+  static const dangerInk = Color(0xFF7A271A);
+
+  /// Nền ô tìm kiếm (bảng chọn ứng dụng thanh toán).
+  static const searchFill = Color(0xFFF1F2F4);
+
+  /// Chữ gợi ý mờ trong ô nhập ("Tìm ứng dụng").
+  static const placeholder = Color(0xFF8A909C);
+
+  /// Lớp phủ tối phía sau bảng trượt từ dưới lên.
+  static const sheetBarrier = Color(0x73101828);
+
   /// Gạch chân ô nhập phụ (Tổng hạn mức) và nền ô xám nhạt (khung "App tự tính").
   static const lineStrong = Color(0xFFC4C9D2);
   static const fieldFill = Color(0xFFF8F9FA);

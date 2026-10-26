@@ -175,6 +175,8 @@ class DriveBackup {
   /// khoản chi và giao dịch trỏ đúng nguồn), khoản chi có thêm `source_id`.
   /// Từ app 0.3.0, mỗi nguồn có thêm `credit_limit` (tổng hạn mức thẻ, có thể null). Trường này
   /// không bắt buộc nên vẫn giữ `version: 2`: file v2 cũ không có trường này khôi phục với NULL.
+  /// Từ app 0.4.0, mỗi nguồn có thêm `app_package` (ứng dụng thanh toán, có thể null), cũng không
+  /// bắt buộc. Khôi phục trên máy chưa cài ứng dụng đó thì form hiện "Ứng dụng không còn trên máy".
   /// Dữ liệu được đọc trong một transaction nên không lẫn trạng thái cũ và mới.
   @visibleForTesting
   static Future<Map<String, Object?>> exportJson(ExpenseDb db, DateTime now) async {

@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 
 import '../data/expense_db.dart';
+import '../data/payment_apps.dart';
 import '../models/money_source.dart';
 import '../theme.dart';
 import '../utils/format.dart';
+import '../widgets/app_picker.dart';
 import '../widgets/common.dart';
 import '../widgets/form_fields.dart';
 
@@ -48,11 +50,20 @@ class _SourceFormScreenState extends State<SourceFormScreen> {
 
   /// Thêm mới: "Tính vào tổng" đi theo loại (tắt cho tiết kiệm) cho tới khi người dùng tự bật/tắt.
   late bool? _inTotalChoice = widget.source?.inTotal;
+
+  /// Ứng dụng thanh toán đang gắn (tên gói) và tên + biểu tượng đọc từ điện thoại.
+  /// Gói có mà [_app] null sau khi đọc xong: ứng dụng không còn trên máy.
+  late String? _appPackage = widget.source?.appPackage;
+  InstalledApp? _app;
+  bool _appLoading = false;
   bool _saving = false;
 
   bool get _isEdit => widget.source != null;
   bool get _isCredit => _type == 'credit';
   bool get _inTotal => _inTotalChoice ?? _type != 'saving';
+
+  /// Tiền mặt không có ứng dụng thanh toán.
+  bool get _showApp => _type != 'cash';
 
   int get _limitValue => parseAmount(_limit.text);
   int get _remainingValue => parseAmount(_remaining.text);
@@ -65,6 +76,18 @@ class _SourceFormScreenState extends State<SourceFormScreen> {
   @override
   void initState() {
     super.initState();
+    final pkg = _appPackage;
+    if (pkg != null) {
+      _appLoading = true;
+      // Lỗi khi đọc thì coi như ứng dụng không còn trên máy (vẫn chọn lại được), không treo ở "đang đọc".
+      PaymentApps.instance.appInfo(pkg).then<InstalledApp?>((app) => app, onError: (Object _) => null).then((app) {
+        if (!mounted || _appPackage != pkg) return;
+        setState(() {
+          _app = app;
+          _appLoading = false;
+        });
+      });
+    }
     if (_isEdit) {
       final source = widget.source!;
       if (source.isCredit && (source.creditLimit ?? 0) > 0) setAmount(_limit, source.creditLimit!);
@@ -106,9 +129,25 @@ class _SourceFormScreenState extends State<SourceFormScreen> {
   void _pickType(String id) {
     setState(() {
       _type = id;
+      // Đổi sang tiền mặt thì bỏ liên kết ứng dụng thanh toán.
+      if (!_showApp) _setApp(null);
       if (_isEdit && !_balanceTouched) _showCurrentBalance();
       _syncRemaining();
     });
+  }
+
+  void _setApp(InstalledApp? app) {
+    _appPackage = app?.package;
+    _app = app;
+    _appLoading = false;
+  }
+
+  Future<void> _chooseApp() async {
+    // Bỏ focus ô số dư: nếu không, đóng bảng chọn xong bàn phím lại bật lên.
+    FocusManager.instance.primaryFocus?.unfocus();
+    final result = await showAppPicker(context, selected: _appPackage);
+    if (result == null || !mounted) return;
+    setState(() => _setApp(result.app));
   }
 
   void _show(String message) {
@@ -160,6 +199,7 @@ class _SourceFormScreenState extends State<SourceFormScreen> {
             isDefault: _isDefault,
             inTotal: _inTotal,
             creditLimit: creditLimit,
+            appPackage: _showApp ? _appPackage : null,
           ),
           newBalance: touched ? balance : null,
         );
@@ -172,6 +212,7 @@ class _SourceFormScreenState extends State<SourceFormScreen> {
             inTotal: _inTotal,
             createdAt: DateTime.now().millisecondsSinceEpoch,
             creditLimit: creditLimit,
+            appPackage: _showApp ? _appPackage : null,
           ),
           openingBalance: balance,
         );
@@ -264,6 +305,10 @@ class _SourceFormScreenState extends State<SourceFormScreen> {
                   ? 'Số dư trong app hiện là ${formatBalance(widget.source!.balance)}. $hint'
                   : hint,
             ),
+          if (_showApp) ...[
+            const SizedBox(height: 22),
+            _buildAppField(),
+          ],
           const SizedBox(height: 22),
           Container(
             clipBehavior: Clip.antiAlias,
@@ -329,6 +374,109 @@ class _SourceFormScreenState extends State<SourceFormScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  /// Mục "Ứng dụng thanh toán (không bắt buộc)": ô bấm mở bảng chọn ứng dụng đã cài.
+  Widget _buildAppField() {
+    final pkg = _appPackage;
+    final app = _app;
+    final Widget leading;
+    final Widget body;
+    final Widget trailing;
+    const changeText = Text('Đổi', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.accent));
+    if (pkg == null) {
+      leading = const _DashedTile(size: 40);
+      body = const Text('Chọn ứng dụng', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500));
+      trailing = const Icon(Icons.chevron_right, size: 22, color: AppColors.muted);
+    } else if (app == null && _appLoading) {
+      leading = const SizedBox(
+        width: 40,
+        height: 40,
+        child: Center(
+          child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
+        ),
+      );
+      body = const Text('Đang đọc ứng dụng…', style: TextStyle(fontSize: 15, color: AppColors.muted));
+      trailing = changeText;
+    } else if (app != null) {
+      leading = AppIconTile(app: app, size: 40);
+      body = Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(app.label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
+          const SizedBox(height: 2),
+          const Text('Mở sau khi lưu khoản chi', style: TextStyle(fontSize: 13, color: AppColors.muted)),
+        ],
+      );
+      trailing = changeText;
+    } else {
+      // Đã gắn nhưng ứng dụng không còn mở được (đã gỡ, hoặc khôi phục trên máy khác).
+      leading = const TintedIcon(
+          icon: Icons.error_outline, fg: AppColors.danger, bg: AppColors.dangerSoft, size: 40);
+      body = const Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Ứng dụng không còn trên máy',
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: AppColors.danger)),
+          SizedBox(height: 2),
+          Text('Chọn lại hoặc bỏ liên kết', style: TextStyle(fontSize: 13, color: AppColors.muted)),
+        ],
+      );
+      trailing = changeText;
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const Padding(
+          padding: EdgeInsets.only(bottom: 10),
+          child: Text.rich(
+            TextSpan(children: [
+              TextSpan(text: 'Ứng dụng thanh toán ', style: TextStyle(fontWeight: FontWeight.w600)),
+              TextSpan(text: '(không bắt buộc)', style: TextStyle(color: AppColors.muted)),
+            ]),
+            style: TextStyle(fontSize: 15),
+          ),
+        ),
+        Semantics(
+          label: 'Ứng dụng thanh toán',
+          button: true,
+          child: Material(
+            color: AppColors.surface,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+              side: const BorderSide(color: AppColors.line),
+            ),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(16),
+              onTap: _saving ? null : _chooseApp,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(minHeight: 64),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 10, 14, 10),
+                  child: Row(
+                    children: [
+                      leading,
+                      const SizedBox(width: 12),
+                      Expanded(child: body),
+                      const SizedBox(width: 8),
+                      trailing,
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 10),
+        const Text(
+          'Khi chi tiêu bằng nguồn này, Sổ chi tiêu ghi khoản chi xong sẽ mở ứng dụng này để bạn thanh toán.',
+          style: TextStyle(fontSize: 13, height: 1.5, color: AppColors.muted),
+        ),
+      ],
     );
   }
 
@@ -445,4 +593,42 @@ class _TypeButton extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Ô vuông viền nét đứt có dấu + (chưa chọn ứng dụng thanh toán).
+class _DashedTile extends StatelessWidget {
+  const _DashedTile({required this.size});
+
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomPaint(
+      painter: _DashedBorderPainter(),
+      child: SizedBox(
+        width: size,
+        height: size,
+        child: const Icon(Icons.add, size: 20, color: AppColors.muted),
+      ),
+    );
+  }
+}
+
+class _DashedBorderPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = AppColors.lineStrong
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5;
+    final rect = RRect.fromRectAndRadius(Offset.zero & size, const Radius.circular(12)).deflate(0.75);
+    for (final metric in (Path()..addRRect(rect)).computeMetrics()) {
+      for (var d = 0.0; d < metric.length; d += 7) {
+        canvas.drawPath(metric.extractPath(d, d + 4), paint);
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(_DashedBorderPainter oldDelegate) => false;
 }

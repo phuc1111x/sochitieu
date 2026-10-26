@@ -95,3 +95,30 @@ String historyDayLabel(DateTime today, DateTime d) {
   final date = d.year == today.year ? formatDayMonth(d) : formatDate(d);
   return '$name · $date';
 }
+
+const _vietnameseFold = {
+  'a': 'àáạảãâầấậẩẫăằắặẳẵ',
+  'e': 'èéẹẻẽêềếệểễ',
+  'i': 'ìíịỉĩ',
+  'o': 'òóọỏõôồốộổỗơờớợởỡ',
+  'u': 'ùúụủũưừứựửữ',
+  'y': 'ỳýỵỷỹ',
+  'd': 'đ',
+};
+
+final _foldMap = {
+  for (final e in _vietnameseFold.entries)
+    for (final ch in e.value.split('')) ch: e.key,
+};
+
+/// Chữ thường, bỏ dấu tiếng Việt ("Ngân Hàng Đông Á" → "ngan hang dong a") để tìm kiếm.
+/// Bỏ cả dấu dạng tổ hợp (U+0300–U+036F) nếu chữ được ghép từ chữ gốc + dấu.
+String foldVietnamese(String text) {
+  final out = StringBuffer();
+  for (final rune in text.toLowerCase().runes) {
+    if (rune >= 0x0300 && rune <= 0x036F) continue;
+    final ch = String.fromCharCode(rune);
+    out.write(_foldMap[ch] ?? ch);
+  }
+  return out.toString();
+}

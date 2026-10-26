@@ -164,7 +164,7 @@ void main() {
     await upgraded.close();
   });
 
-  test('nâng cấp từ database v1 lên v3: bảng nguồn có credit_limit, có "Tiền mặt", giữ khoản chi', () async {
+  test('nâng cấp từ database v1 lên v4: bảng nguồn có credit_limit, có "Tiền mặt", giữ khoản chi', () async {
     final path = p.join(dir.path, 'v1.db');
     final v1 = await databaseFactoryFfi.openDatabase(path,
         options: OpenDatabaseOptions(
@@ -188,11 +188,14 @@ void main() {
 
     final upgraded = ExpenseDb.forTesting(databaseFactoryFfi, path);
     final raw = await upgraded.db;
-    expect(await raw.getVersion(), 3);
+    expect(await raw.getVersion(), 4);
     final columns = (await raw.rawQuery('PRAGMA table_info(sources)')).map((r) => r['name']);
-    expect(columns, contains('credit_limit'));
+    expect(columns, containsAll(['credit_limit', 'app_package']));
     final sources = await upgraded.sourcesWithBalance();
     expect(sources.map((s) => (s.name, s.type, s.isDefault, s.creditLimit)), [('Tiền mặt', 'cash', true, null)]);
+    final rawApps = await raw.query('sources', columns: ['app_package']);
+    expect(rawApps.map((r) => r['app_package']), [null]);
+    expect(sources.single.appPackage, isNull);
     final all = await upgraded.all();
     expect((all.single.amount, all.single.note, all.single.sourceId), (45000, 'Phở', null));
 

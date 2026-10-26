@@ -80,6 +80,7 @@ class MoneySource {
     required this.createdAt,
     this.balance = 0,
     this.creditLimit,
+    this.appPackage,
   });
 
   final int? id;
@@ -99,6 +100,10 @@ class MoneySource {
   /// Đây là giá trị duy nhất được lưu: số nợ vẫn tính từ sổ cái, hạn mức còn lại = hạn mức + số dư.
   final int? creditLimit;
 
+  /// Ứng dụng thanh toán gắn với nguồn (tên gói Android, ví dụ `com.mservice.momotransfer`):
+  /// thêm khoản chi bằng nguồn này thì có nút "Lưu & mở {app}". Tiền mặt không có.
+  final String? appPackage;
+
   SourceType get sourceType => sourceTypeById(type);
 
   bool get isCredit => type == 'credit';
@@ -117,7 +122,7 @@ class MoneySource {
 
   static const _keep = Object();
 
-  /// [creditLimit] truyền `null` để xoá hạn mức; bỏ trống để giữ nguyên.
+  /// [creditLimit] / [appPackage] truyền `null` để xoá; bỏ trống để giữ nguyên.
   MoneySource copyWith({
     String? name,
     String? type,
@@ -125,6 +130,7 @@ class MoneySource {
     bool? inTotal,
     bool? archived,
     Object? creditLimit = _keep,
+    Object? appPackage = _keep,
   }) =>
       MoneySource(
         id: id,
@@ -136,6 +142,7 @@ class MoneySource {
         createdAt: createdAt,
         balance: balance,
         creditLimit: identical(creditLimit, _keep) ? this.creditLimit : creditLimit as int?,
+        appPackage: identical(appPackage, _keep) ? this.appPackage : appPackage as String?,
       );
 
   Map<String, Object?> toMap() => {
@@ -148,6 +155,8 @@ class MoneySource {
         'created_at': createdAt,
         // Chỉ thẻ tín dụng có hạn mức: đổi sang loại khác thì hạn mức bị xoá (NULL).
         'credit_limit': isCredit ? creditLimit : null,
+        // Tiền mặt không gắn ứng dụng thanh toán: đổi sang tiền mặt thì bỏ liên kết (NULL).
+        'app_package': type == 'cash' ? null : appPackage,
       };
 
   factory MoneySource.fromMap(Map<String, Object?> m) => MoneySource(
@@ -160,6 +169,10 @@ class MoneySource {
         createdAt: (m['created_at'] as num? ?? 0).toInt(),
         balance: (m['balance'] as num? ?? 0).toInt(),
         creditLimit: (m['credit_limit'] as num?)?.toInt(),
+        appPackage: switch (m['app_package']) {
+          final String p when p.isNotEmpty => p,
+          _ => null,
+        },
       );
 }
 

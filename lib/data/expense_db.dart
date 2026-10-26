@@ -37,7 +37,7 @@ class ExpenseDb {
   @visibleForTesting
   static set instance(ExpenseDb db) => _instance = db;
 
-  static const _version = 3;
+  static const _version = 4;
   static const defaultSourceName = 'Tiền mặt';
   static const openingNote = 'Số dư ban đầu';
   static const realBalanceNote = 'Số dư thực tế';
@@ -79,10 +79,16 @@ class ExpenseDb {
           if (oldVersion < 2) {
             // Khoản chi cũ giữ source_id = NULL: không tự gán vào nguồn nào.
             await db.execute('ALTER TABLE expenses ADD COLUMN source_id INTEGER');
-            await _createMoneyTables(db); // đã có sẵn cột credit_limit
-          } else if (oldVersion < 3) {
+            await _createMoneyTables(db); // đã có sẵn cột credit_limit và app_package
+            return;
+          }
+          if (oldVersion < 3) {
             // v3: tổng hạn mức thẻ tín dụng. Thẻ cũ giữ NULL (chưa nhập hạn mức).
             await db.execute('ALTER TABLE sources ADD COLUMN credit_limit INTEGER');
+          }
+          if (oldVersion < 4) {
+            // v4: ứng dụng thanh toán gắn với nguồn. Nguồn cũ giữ NULL (chưa gắn).
+            await db.execute('ALTER TABLE sources ADD COLUMN app_package TEXT');
           }
         },
       ),
@@ -99,7 +105,8 @@ class ExpenseDb {
         in_total INTEGER NOT NULL DEFAULT 1,
         archived INTEGER NOT NULL DEFAULT 0,
         created_at INTEGER NOT NULL,
-        credit_limit INTEGER
+        credit_limit INTEGER,
+        app_package TEXT
       )
     ''');
     await db.execute('''
@@ -345,7 +352,8 @@ class ExpenseDb {
     return id;
   }
 
-  /// Sửa nguồn tiền (kể cả tổng hạn mức `s.creditLimit`; đổi hạn mức không ghi dòng sổ cái nào).
+  /// Sửa nguồn tiền (kể cả tổng hạn mức `s.creditLimit` và ứng dụng thanh toán `s.appPackage`;
+  /// đổi hai giá trị này không ghi dòng sổ cái nào).
   /// [newBalance] khác số dư hiện tại thì ghi một dòng điều chỉnh
   /// "Số dư thực tế" cho phần chênh lệch, đề ngày hôm nay.
   /// Luôn còn đúng một nguồn mặc định: tắt mặc định của nguồn mặc định duy nhất thì
