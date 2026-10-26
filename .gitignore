@@ -50,7 +50,7 @@ app.*.map.json
 # Kotlin compiler caches
 .kotlin/
 
-# Release APK copies kept at the repo root (build output)
+# Release APK copies kept in builds/ (build output)
 *.apk
 *.aab
 
