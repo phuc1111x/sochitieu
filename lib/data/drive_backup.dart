@@ -1,0 +1,189 @@
+import 'dart:convert';
+
+import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:extension_google_sign_in_as_googleapis_auth/extension_google_sign_in_as_googleapis_auth.dart';
+import 'package:flutter/foundation.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+import 'package:googleapis/drive/v3.dart' as drive;
+import 'package:shared_preferences/shared_preferences.dart';
+
+import '../config.dart';
+import '../models/expense.dart';
+import 'expense_db.dart';
+
+class BackupException implements Exception {
+  const BackupException(this.message);
+
+  final String message;
+
+  @override
+  String toString() => message;
+}
+
+/// Sao lưu / khôi phục toàn bộ dữ liệu thành một file JSON trong thư mục
+/// riêng của app trên Google Drive (appDataFolder: người dùng không thấy,
+/// app khác không đọc được).
+class DriveBackup {
+  DriveBackup._();
+
+  static final instance = DriveBackup._();
+
+  static const _scopes = [drive.DriveApi.driveAppdataScope];
+  static const _fileName = 'sochitieu-backup.json';
+  static const _kLastBackup = 'last_backup_at';
+  static const _kAuto = 'auto_backup';
+  static const _kWifiOnly = 'wifi_only';
+
+  final _signIn = GoogleSignIn.instance;
+
+  final account = ValueNotifier<GoogleSignInAccount?>(null);
+  final lastBackup = ValueNotifier<DateTime?>(null);
+  final autoBackup = ValueNotifier<bool>(true);
+  final wifiOnly = ValueNotifier<bool>(true);
+
+  bool get isConfigured => googleWebClientId.isNotEmpty;
+
+  Future<void>? _init;
+
+  Future<void> init() => _init ??= _doInit();
+
+  Future<void> _doInit() async {
+    final prefs = await SharedPreferences.getInstance();
+    final last = prefs.getInt(_kLastBackup);
+    lastBackup.value = last == null ? null : DateTime.fromMillisecondsSinceEpoch(last);
+    autoBackup.value = prefs.getBool(_kAuto) ?? true;
+    wifiOnly.value = prefs.getBool(_kWifiOnly) ?? true;
+    if (!isConfigured) return;
+
+    try {
+      await _signIn.initialize(serverClientId: googleWebClientId);
+      _signIn.authenticationEvents.listen((event) {
+        account.value = switch (event) {
+          GoogleSignInAuthenticationEventSignIn() => event.user,
+          GoogleSignInAuthenticationEventSignOut() => null,
+        };
+      }, onError: (Object e) => debugPrint('Google sign-in: $e'));
+      account.value = await _signIn.attemptLightweightAuthentication();
+    } catch (e) {
+      debugPrint('Google sign-in init: $e');
+    }
+  }
+
+  Future<void> setAutoBackup(bool value) async {
+    autoBackup.value = value;
+    await (await SharedPreferences.getInstance()).setBool(_kAuto, value);
+  }
+
+  Future<void> setWifiOnly(bool value) async {
+    wifiOnly.value = value;
+    await (await SharedPreferences.getInstance()).setBool(_kWifiOnly, value);
+  }
+
+  Future<void> connect() async {
+    await init();
+    if (!isConfigured) {
+      throw const BackupException('Tính năng sao lưu chưa được cấu hình trong bản cài này.');
+    }
+    try {
+      final user = await _signIn.authenticate(scopeHint: _scopes);
+      account.value = user;
+      await user.authorizationClient.authorizeScopes(_scopes);
+    } on GoogleSignInException catch (e) {
+      if (e.code == GoogleSignInExceptionCode.canceled) {
+        throw const BackupException('Đã huỷ đăng nhập Google.');
+      }
+      throw BackupException('Không đăng nhập được Google (${e.code.name}).');
+    }
+  }
+
+  Future<void> disconnect() async {
+    await _signIn.disconnect();
+    account.value = null;
+  }
+
+  Future<drive.DriveApi> _api({required bool interactive}) async {
+    final user = account.value;
+    if (user == null) throw const BackupException('Chưa kết nối Google Drive.');
+    var authorization = await user.authorizationClient.authorizationForScopes(_scopes);
+    if (authorization == null && interactive) {
+      authorization = await user.authorizationClient.authorizeScopes(_scopes);
+    }
+    if (authorization == null) throw const BackupException('Cần cấp quyền Google Drive.');
+    return drive.DriveApi(authorization.authClient(scopes: _scopes));
+  }
+
+  Future<String?> _findBackupFileId(drive.DriveApi api) async {
+    final list = await api.files.list(
+      spaces: 'appDataFolder',
+      q: "name = '$_fileName' and trashed = false",
+      $fields: 'files(id, modifiedTime)',
+      orderBy: 'modifiedTime desc',
+    );
+    final files = list.files;
+    return (files == null || files.isEmpty) ? null : files.first.id;
+  }
+
+  Future<void> backup({bool interactive = true}) async {
+    final api = await _api(interactive: interactive);
+    final expenses = await ExpenseDb.instance.all();
+    final now = DateTime.now();
+    final bytes = utf8.encode(jsonEncode({
+      'app': 'sochitieu',
+      'version': 1,
+      'exportedAt': now.toIso8601String(),
+      'expenses': [for (final e in expenses) e.toMap()..remove('id')],
+    }));
+    final media = drive.Media(Stream.value(bytes), bytes.length, contentType: 'application/json');
+
+    final existingId = await _findBackupFileId(api);
+    if (existingId == null) {
+      await api.files.create(
+        drive.File()
+          ..name = _fileName
+          ..parents = ['appDataFolder'],
+        uploadMedia: media,
+      );
+    } else {
+      await api.files.update(drive.File(), existingId, uploadMedia: media);
+    }
+
+    lastBackup.value = now;
+    await (await SharedPreferences.getInstance()).setInt(_kLastBackup, now.millisecondsSinceEpoch);
+  }
+
+  /// Thay dữ liệu trên máy bằng bản sao lưu. Trả về số khoản chi đã khôi phục.
+  Future<int> restore() async {
+    final api = await _api(interactive: true);
+    final id = await _findBackupFileId(api);
+    if (id == null) throw const BackupException('Chưa có bản sao lưu nào trên Google Drive.');
+
+    final media = await api.files.get(id, downloadOptions: drive.DownloadOptions.fullMedia) as drive.Media;
+    final bytes = <int>[];
+    await for (final chunk in media.stream) {
+      bytes.addAll(chunk);
+    }
+    final data = jsonDecode(utf8.decode(bytes)) as Map<String, dynamic>;
+    final expenses = [
+      for (final m in data['expenses'] as List) Expense.fromMap(Map<String, Object?>.from(m as Map)),
+    ];
+    await ExpenseDb.instance.replaceAll(expenses);
+    return expenses.length;
+  }
+
+  /// Gọi khi mở app: tự sao lưu nếu đã bật và lần gần nhất cách đây hơn 1 ngày.
+  Future<void> maybeAutoBackup() async {
+    await init();
+    if (!isConfigured || !autoBackup.value || account.value == null) return;
+    final last = lastBackup.value;
+    if (last != null && DateTime.now().difference(last) < const Duration(days: 1)) return;
+    if (wifiOnly.value) {
+      final types = await Connectivity().checkConnectivity();
+      if (!types.contains(ConnectivityResult.wifi) && !types.contains(ConnectivityResult.ethernet)) return;
+    }
+    try {
+      await backup(interactive: false);
+    } catch (e) {
+      debugPrint('Auto backup skipped: $e');
+    }
+  }
+}
