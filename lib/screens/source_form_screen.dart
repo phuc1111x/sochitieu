@@ -259,8 +259,8 @@ class _SourceFormScreenState extends State<SourceFormScreen> {
   @override
   Widget build(BuildContext context) {
     final hint = _isEdit
-        ? 'Nếu số dư thật khác với app, sửa ở đây. App ghi lại một dòng “Điều chỉnh số dư”, không tính là chi tiêu.'
-        : 'Nhập số tiền đang có thật trong nguồn này. Từ giờ, mỗi khoản chi trả bằng nguồn này sẽ tự trừ vào đây.';
+        ? 'Sửa nếu số dư thật khác app. Ghi thành “Điều chỉnh số dư”, không tính là chi tiêu.'
+        : 'Nhập số tiền đang có thật. Mỗi khoản chi từ nguồn này sẽ tự trừ vào đây.';
     return Scaffold(
       appBar: AppBar(
         leading: IconButton(
@@ -271,28 +271,26 @@ class _SourceFormScreenState extends State<SourceFormScreen> {
         title: Text(_isEdit ? 'Sửa nguồn tiền' : 'Thêm nguồn tiền'),
       ),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+        padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
         children: [
           const FieldLabel('Tên nguồn tiền'),
           TextBox(controller: _name, hint: 'Ví dụ: Vietcombank, MoMo', maxLength: 40),
-          const SizedBox(height: 22),
+          const SizedBox(height: 14),
           const FieldLabel('Loại'),
-          GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: sourceTypes.length,
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 3,
-              mainAxisSpacing: 10,
-              crossAxisSpacing: 10,
-              mainAxisExtent: 88,
-            ),
-            itemBuilder: (context, i) {
-              final t = sourceTypes[i];
-              return _TypeButton(type: t, selected: t.id == _type, onTap: () => _pickType(t.id));
-            },
+          PickerField<String>(
+            semanticLabel: 'Loại',
+            selected: _type,
+            onChanged: _pickType,
+            options: [
+              for (final s in sourceTypes)
+                PickerOption<String>(
+                  value: s.id,
+                  leading: (size) => SourceIcon(type: s, size: size),
+                  title: s.name,
+                ),
+            ],
           ),
-          const SizedBox(height: 22),
+          const SizedBox(height: 14),
           if (_isCredit)
             _buildCreditCard()
           else
@@ -306,10 +304,10 @@ class _SourceFormScreenState extends State<SourceFormScreen> {
                   : hint,
             ),
           if (_showApp) ...[
-            const SizedBox(height: 22),
+            const SizedBox(height: 14),
             _buildAppField(),
           ],
-          const SizedBox(height: 22),
+          const SizedBox(height: 14),
           Container(
             clipBehavior: Clip.antiAlias,
             decoration: BoxDecoration(
@@ -322,21 +320,25 @@ class _SourceFormScreenState extends State<SourceFormScreen> {
               child: Column(
                 children: [
                   SwitchListTile(
+                    dense: true,
+                    visualDensity: const VisualDensity(vertical: -2),
                     value: _isDefault,
                     onChanged: (v) => setState(() => _isDefault = v),
-                    title: const Text('Dùng mặc định khi chi tiêu',
+                    title: const Text('Nguồn mặc định khi chi tiêu',
                         style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
-                    subtitle: const Text('Tự chọn sẵn nguồn này ở màn Thêm chi tiêu',
+                    subtitle: const Text('Chọn sẵn ở màn Thêm chi tiêu',
                         style: TextStyle(fontSize: 13, color: AppColors.muted)),
                   ),
                   const Divider(height: 1, color: AppColors.divider),
                   SwitchListTile(
+                    dense: true,
+                    visualDensity: const VisualDensity(vertical: -2),
                     value: _inTotal,
                     onChanged: (v) => setState(() => _inTotalChoice = v),
                     title: const Text('Tính vào tổng tiền hiện có',
                         style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
                     subtitle: Text(
-                        _isCredit ? 'Số nợ thẻ được trừ khỏi tổng tiền' : 'Tắt cho tiền tiết kiệm không muốn đụng tới',
+                        _isCredit ? 'Dư nợ thẻ được trừ khỏi tổng tiền' : 'Tắt cho tiền tiết kiệm không muốn đụng tới',
                         style: const TextStyle(fontSize: 13, color: AppColors.muted)),
                   ),
                 ],
@@ -353,7 +355,14 @@ class _SourceFormScreenState extends State<SourceFormScreen> {
                 textStyle: const TextStyle(fontFamily: 'BeVietnamPro', fontSize: 15, fontWeight: FontWeight.w600),
               ),
               icon: const Icon(Icons.delete_outline),
-              label: const Text('Xoá nguồn tiền này'),
+              label: const Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text('Xoá nguồn tiền này'),
+                  Text('Lịch sử chi tiêu vẫn được giữ',
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w400, color: AppColors.muted)),
+                ],
+              ),
             ),
           ],
         ],
@@ -454,9 +463,9 @@ class _SourceFormScreenState extends State<SourceFormScreen> {
               borderRadius: BorderRadius.circular(16),
               onTap: _saving ? null : _chooseApp,
               child: ConstrainedBox(
-                constraints: const BoxConstraints(minHeight: 64),
+                constraints: const BoxConstraints(minHeight: 56),
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 10, 14, 10),
+                  padding: const EdgeInsets.fromLTRB(12, 6, 14, 6),
                   child: Row(
                     children: [
                       leading,
@@ -471,25 +480,20 @@ class _SourceFormScreenState extends State<SourceFormScreen> {
             ),
           ),
         ),
-        const SizedBox(height: 10),
-        const Text(
-          'Khi chi tiêu bằng nguồn này, Sổ chi tiêu ghi khoản chi xong sẽ mở ứng dụng này để bạn thanh toán.',
-          style: TextStyle(fontSize: 13, height: 1.5, color: AppColors.muted),
-        ),
       ],
     );
   }
 
-  /// Khung thẻ tín dụng: Tổng hạn mức + Hạn mức còn lại, ô "App tự tính: đang nợ" kèm thanh % đã dùng.
+  /// Khung thẻ tín dụng: Tổng hạn mức + Hạn mức còn lại cạnh nhau, ô "Dư nợ (app tự tính)" kèm thanh % đã dùng.
   Widget _buildCreditCard() {
     final limit = _limitValue;
     // Khi sửa mà chưa chạm vào ô "còn lại": số nợ thật trong sổ cái (kể cả khi đã vượt hạn mức,
     // lúc ô "còn lại" chỉ hiện được 0).
     final debt = _isEdit && !_remainingTouched ? -widget.source!.balance : limit - _remainingValue;
     final used = usedPercentOf(debt, limit);
-    final usedLabel = limit > 0 ? 'Đã dùng $used% hạn mức' : 'Nhập tổng hạn mức để xem đã dùng bao nhiêu';
+    final usedLabel = limit > 0 ? 'Đã dùng $used% hạn mức' : 'Nhập tổng hạn mức';
     return Container(
-      padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
+      padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(20),
@@ -498,41 +502,48 @@ class _SourceFormScreenState extends State<SourceFormScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          MoneyLineField(
-            controller: _limit,
-            label: 'Tổng hạn mức của thẻ',
-            fontSize: 24,
-            emphasized: false,
-            onChanged: (_) => setState(_syncRemaining),
-          ),
-          const SizedBox(height: 18),
-          MoneyLineField(
-            controller: _remaining,
-            label: 'Hạn mức còn lại (khả dụng)',
-            allowZero: true,
-            onChanged: (_) => setState(() => _remainingTouched = true),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: MoneyLineField(
+                  controller: _limit,
+                  label: 'Tổng hạn mức',
+                  fontSize: 20,
+                  onChanged: (_) => setState(_syncRemaining),
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: MoneyLineField(
+                  controller: _remaining,
+                  label: 'Hạn mức còn lại',
+                  fontSize: 20,
+                  allowZero: true,
+                  onChanged: (_) => setState(() => _remainingTouched = true),
+                ),
+              ),
+            ],
           ),
           if (_overLimit) ...[
-            const SizedBox(height: 18),
+            const SizedBox(height: 12),
             Semantics(
               liveRegion: true,
               child: const Text(overLimitMessage,
                   style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.danger)),
             ),
           ],
-          const SizedBox(height: 18),
+          const SizedBox(height: 14),
           Container(
-            padding: const EdgeInsets.all(14),
+            padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(color: AppColors.fieldFill, borderRadius: BorderRadius.circular(14)),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Row(
-                  crossAxisAlignment: CrossAxisAlignment.baseline,
-                  textBaseline: TextBaseline.alphabetic,
                   children: [
                     const Expanded(
-                      child: Text('App tự tính: đang nợ', style: TextStyle(fontSize: 14, color: AppColors.muted)),
+                      child: Text('Dư nợ (app tự tính)', style: TextStyle(fontSize: 14, color: AppColors.muted)),
                     ),
                     const SizedBox(width: 8),
                     Text(
@@ -541,55 +552,27 @@ class _SourceFormScreenState extends State<SourceFormScreen> {
                     ),
                   ],
                 ),
-                const SizedBox(height: 8),
-                UsageBar(percent: used, height: 8, label: usedLabel, track: AppColors.line),
-                const SizedBox(height: 8),
-                Text(usedLabel, style: const TextStyle(fontSize: 12, color: AppColors.muted)),
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    Expanded(child: UsageBar(percent: used, height: 6, label: usedLabel, track: AppColors.line)),
+                    const SizedBox(width: 10),
+                    Flexible(
+                      child: Text(usedLabel,
+                          textAlign: TextAlign.right,
+                          style: const TextStyle(fontSize: 12, color: AppColors.muted)),
+                    ),
+                  ],
+                ),
               ],
             ),
           ),
-          const SizedBox(height: 18),
+          const SizedBox(height: 10),
           const Text(
-            'Mở app ngân hàng, chép số “Hạn mức khả dụng” vào ô Hạn mức còn lại. Chi bằng thẻ thì hạn mức '
-            'còn lại giảm; trả thẻ (Chuyển tiền từ ngân hàng sang thẻ) thì tăng lại.',
-            style: TextStyle(fontSize: 13, height: 1.5, color: AppColors.muted),
+            'Chép số Hạn mức còn lại từ app ngân hàng.',
+            style: TextStyle(fontSize: 13, color: AppColors.muted),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _TypeButton extends StatelessWidget {
-  const _TypeButton({required this.type, required this.selected, required this.onTap});
-
-  final SourceType type;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: selected ? AppColors.selectedFill : AppColors.surface,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: selected ? AppColors.accent : AppColors.line, width: selected ? 2 : 1),
-      ),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(16),
-        onTap: onTap,
-        child: Semantics(
-          selected: selected,
-          button: true,
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              SourceIcon(type: type, size: 40),
-              const SizedBox(height: 8),
-              Text(type.name, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
-            ],
-          ),
-        ),
       ),
     );
   }

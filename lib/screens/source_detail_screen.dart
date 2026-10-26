@@ -80,8 +80,8 @@ class SourceDetailScreen extends StatelessWidget {
                       child: ActionTile(
                         vertical: true,
                         icon: Icons.check,
-                        label: 'Trả thẻ',
-                        onTap: () => openTransfer(context, data.active, toId: source.id),
+                        label: 'Thanh toán dư nợ',
+                        onTap: () => openTransfer(context, data.active, toId: source.id, cardPayment: true),
                       ),
                     ),
                     const SizedBox(width: 10),
@@ -89,7 +89,7 @@ class SourceDetailScreen extends StatelessWidget {
                       child: ActionTile(
                         vertical: true,
                         icon: Icons.add,
-                        label: 'Chi tiêu',
+                        label: 'Thêm chi tiêu',
                         onTap: () => openExpenseForm(context, sourceId: source.id),
                       ),
                     ),
@@ -112,7 +112,7 @@ class SourceDetailScreen extends StatelessWidget {
                       child: ActionTile(
                         vertical: true,
                         icon: Icons.download_outlined,
-                        label: 'Thêm tiền',
+                        label: 'Tiền vào',
                         onTap: () => openMoneyForm(context, kind: MoveKind.income, toId: source.id),
                       ),
                     ),
@@ -121,7 +121,7 @@ class SourceDetailScreen extends StatelessWidget {
                       child: ActionTile(
                         vertical: true,
                         icon: Icons.swap_horiz,
-                        label: 'Chuyển tiền',
+                        label: 'Chuyển giữa các nguồn',
                         onTap: () => openTransfer(context, data.active, fromId: source.id),
                       ),
                     ),
@@ -130,7 +130,7 @@ class SourceDetailScreen extends StatelessWidget {
                       child: ActionTile(
                         vertical: true,
                         icon: Icons.add,
-                        label: 'Chi tiêu',
+                        label: 'Thêm chi tiêu',
                         onTap: () => openExpenseForm(context, sourceId: source.id),
                       ),
                     ),
@@ -247,9 +247,9 @@ class _BalanceCard extends StatelessWidget {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Expanded(child: _flow('Vào tháng này', inflow, AppColors.income)),
+                Expanded(child: _flow('Tiền vào tháng này', inflow, AppColors.income)),
                 const VerticalDivider(width: 1, thickness: 1, color: AppColors.divider),
-                Expanded(child: _flow('Ra tháng này', outflow, AppColors.ink)),
+                Expanded(child: _flow('Tiền ra tháng này', outflow, AppColors.ink)),
               ],
             ),
           ),
@@ -259,7 +259,7 @@ class _BalanceCard extends StatelessWidget {
   }
 }
 
-/// Đầu màn chi tiết thẻ tín dụng có hạn mức: "Còn được tiêu", thanh % đã dùng, "Đang nợ" / "Tổng hạn mức".
+/// Đầu màn chi tiết thẻ tín dụng có hạn mức: "Hạn mức còn lại", thanh % đã dùng, "Dư nợ" / "Tổng hạn mức".
 class _CreditCard extends StatelessWidget {
   const _CreditCard({required this.source});
 
@@ -306,7 +306,7 @@ class _CreditCard extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text('Còn được tiêu',
+                          const Text('Hạn mức còn lại',
                               style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: AppColors.muted)),
                           const SizedBox(height: 2),
                           FittedBox(
@@ -341,7 +341,7 @@ class _CreditCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Expanded(
-                  child: _cell('Đang nợ', formatMoney(debt > 0 ? debt : 0), debt > 0 ? AppColors.danger : AppColors.ink),
+                  child: _cell('Dư nợ', formatMoney(debt > 0 ? debt : 0), debt > 0 ? AppColors.danger : AppColors.ink),
                 ),
                 const VerticalDivider(width: 1, thickness: 1, color: AppColors.divider),
                 Expanded(child: _cell('Tổng hạn mức', formatMoney(source.creditLimit!), AppColors.ink)),
@@ -354,7 +354,7 @@ class _CreditCard extends StatelessWidget {
   }
 }
 
-/// Chuyển tiền và điều chỉnh số dư dùng màu của loại nguồn "Khác".
+/// Chuyển giữa các nguồn và điều chỉnh số dư dùng màu của loại nguồn "Khác".
 final _other = sourceTypeById('other');
 
 class _LedgerTile extends StatelessWidget {
@@ -392,19 +392,19 @@ class _LedgerTile extends StatelessWidget {
       case MoveKind.income:
         icon = const TintedIcon(
             icon: Icons.download_outlined, fg: AppColors.income, bg: AppColors.incomeSoft, size: 40);
-        title = note.isEmpty ? 'Thêm tiền' : note;
-        kind = 'Thêm tiền';
+        title = note.isEmpty ? 'Tiền vào' : note;
+        kind = 'Tiền vào';
       case MoveKind.move when isCard && entry.amount > 0:
         icon = const TintedIcon(icon: Icons.swap_horiz, fg: AppColors.income, bg: AppColors.incomeSoft, size: 40);
         final other = names[entry.otherId] ?? '?';
-        title = note.isEmpty ? 'Trả thẻ từ $other' : '$note ← $other';
-        kind = 'Trả thẻ';
+        title = note.isEmpty ? 'Thanh toán dư nợ từ $other' : '$note ← $other';
+        kind = 'Thanh toán dư nợ';
       case MoveKind.move:
         icon = TintedIcon(icon: Icons.swap_horiz, fg: _other.fg, bg: _other.bg, size: 40);
         final other = names[entry.otherId] ?? '?';
         final base = note.isEmpty ? (entry.amount < 0 ? 'Chuyển' : 'Nhận') : note;
         title = entry.amount < 0 ? '$base → $other' : '$base ← $other';
-        kind = 'Chuyển tiền';
+        kind = 'Chuyển giữa các nguồn';
       default:
         icon = TintedIcon(icon: Icons.edit_outlined, fg: _other.fg, bg: _other.bg, size: 40);
         title = note.isEmpty ? 'Điều chỉnh số dư' : note;

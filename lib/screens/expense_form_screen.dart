@@ -49,15 +49,15 @@ final _noSource = SourceType(
 
 /// Câu "Sau khi lưu, ..." dưới ô "Trả bằng", tách phần chữ và phần số tiền (số tiền âm tô đỏ):
 /// còn số dư → "còn 1.205.000 đ"; nguồn thường bị âm → "âm 500.000 đ"; thẻ tín dụng → "nợ 2.350.000 đ".
-/// Thẻ có hạn mức: "thẻ còn được tiêu 7.600.000 đ", vượt hạn mức thì "thẻ nợ 8.350.000 đ".
+/// Thẻ có hạn mức: "hạn mức còn lại 7.600.000 đ", vượt hạn mức thì "dư nợ thẻ 8.350.000 đ".
 /// [after] là số dư của nguồn sau khi lưu.
 @visibleForTesting
 ({String text, String amount, bool negative}) afterSaveParts(MoneySource source, int after) {
   final name = source.name;
   if (source.hasLimit) {
     final left = source.creditLimit! + after;
-    if (left >= 0) return (text: 'Sau khi lưu, thẻ còn được tiêu ', amount: formatBalance(left), negative: false);
-    return (text: 'Sau khi lưu, thẻ nợ ', amount: formatMoney(-after), negative: true);
+    if (left >= 0) return (text: 'Sau khi lưu, hạn mức còn lại ', amount: formatBalance(left), negative: false);
+    return (text: 'Sau khi lưu, dư nợ thẻ ', amount: formatMoney(-after), negative: true);
   }
   if (after >= 0) return (text: 'Sau khi lưu, $name còn ', amount: formatBalance(after), negative: false);
   if (source.type == 'credit') return (text: 'Sau khi lưu, $name nợ ', amount: formatMoney(-after), negative: true);
@@ -293,6 +293,8 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
           AmountCard(
             controller: _amount,
             autofocus: !_isEdit,
+            labelTrailing:
+                DateChip(date: _date, helpText: 'Chọn ngày chi', onChanged: (d) => setState(() => _date = d)),
             onChanged: (_) => setState(() {}),
             onClear: () => setState(() => _amountValue = 0),
             quickAmounts: _quickAmounts,
@@ -323,9 +325,6 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
             ),
           ),
           if (_sourcesLoaded) ..._buildSourcePicker(),
-          const SizedBox(height: 22),
-          const FieldLabel('Ngày'),
-          DateField(date: _date, helpText: 'Chọn ngày chi', onChanged: (d) => setState(() => _date = d)),
           const SizedBox(height: 22),
           const NoteLabel(),
           TextBox(controller: _note, hint: 'Ví dụ: Phở bò sáng'),

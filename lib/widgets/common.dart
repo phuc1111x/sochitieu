@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../data/expense_db.dart';
 import '../models/category.dart';
@@ -52,7 +53,46 @@ class _DbBuilderState<T> extends State<DbBuilder<T>> {
 }
 
 /// Thanh chọn ngày/tháng: ◀ nhãn ▶ và dòng nhắc vuốt ngang.
-class PeriodSwitcher extends StatelessWidget {
+/// Gợi ý "Vuốt ngang..." chỉ hiện tới khi người dùng đã vuốt đổi kỳ ít nhất một lần
+/// (cờ `swipe_hint_done` trong shared_preferences, dùng chung cho màn Ngày và Tháng).
+class SwipeHint {
+  SwipeHint._();
+
+  static const prefKey = 'swipe_hint_done';
+  static final done = ValueNotifier<bool>(false);
+
+  /// Đọc cờ đã lưu; lỗi đọc thì cứ hiện gợi ý.
+  static Future<void> load() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (prefs.getBool(prefKey) ?? false) done.value = true;
+    } catch (_) {}
+  }
+
+  static Future<void> markDone() async {
+    if (done.value) return;
+    done.value = true;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(prefKey, true);
+    } catch (_) {}
+  }
+
+  /// Bọc [PageView] của màn Ngày / Tháng: người dùng tự vuốt thì tắt gợi ý
+  /// (bấm nút ◀ ▶ không tính).
+  static Widget watch({required Widget child}) => NotificationListener<ScrollStartNotification>(
+        onNotification: (n) {
+          if (n.dragDetails != null && n.depth == 0) markDone();
+          return false;
+        },
+        child: child,
+      );
+
+  @visibleForTesting
+  static void resetForTest() => done.value = false;
+}
+
+class PeriodSwitcher extends StatefulWidget {
   const PeriodSwitcher({
     super.key,
     required this.label,
@@ -71,6 +111,25 @@ class PeriodSwitcher extends StatelessWidget {
   final String nextTooltip;
   final VoidCallback? onPrev;
   final VoidCallback? onNext;
+
+  @override
+  State<PeriodSwitcher> createState() => _PeriodSwitcherState();
+}
+
+class _PeriodSwitcherState extends State<PeriodSwitcher> {
+  String get label => widget.label;
+  String get title => widget.title;
+  String get hint => widget.hint;
+  String get prevTooltip => widget.prevTooltip;
+  String get nextTooltip => widget.nextTooltip;
+  VoidCallback? get onPrev => widget.onPrev;
+  VoidCallback? get onNext => widget.onNext;
+
+  @override
+  void initState() {
+    super.initState();
+    SwipeHint.load();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -95,16 +154,21 @@ class PeriodSwitcher extends StatelessWidget {
             ],
           ),
         ),
-        Padding(
-          padding: const EdgeInsets.only(bottom: 12),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.swap_horiz, size: 16, color: AppColors.muted),
-              const SizedBox(width: 6),
-              Text(hint, style: const TextStyle(fontSize: 12, color: AppColors.muted)),
-            ],
-          ),
+        ValueListenableBuilder<bool>(
+          valueListenable: SwipeHint.done,
+          builder: (context, done, _) => done
+              ? const SizedBox(height: 6)
+              : Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.swap_horiz, size: 16, color: AppColors.muted),
+                      const SizedBox(width: 6),
+                      Text(hint, style: const TextStyle(fontSize: 12, color: AppColors.muted)),
+                    ],
+                  ),
+                ),
         ),
       ],
     );
@@ -340,6 +404,63 @@ class UsageBar extends StatelessWidget {
             child: DecoratedBox(decoration: BoxDecoration(color: colorFor(percent), borderRadius: radius)),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Nhóm nút chọn dạng segmented (nền xám, ô đang chọn nổi trắng), chữ có thể xuống hai dòng.
+class SegmentedTabs extends StatelessWidget {
+  const SegmentedTabs({super.key, required this.labels, required this.selected, required this.onChanged});
+
+  final List<String> labels;
+  final int selected;
+  final ValueChanged<int> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(color: AppColors.segmentTrack, borderRadius: BorderRadius.circular(14)),
+      child: Row(
+        children: [
+          for (var i = 0; i < labels.length; i++) ...[
+            if (i > 0) const SizedBox(width: 4),
+            Expanded(
+              child: Semantics(
+                selected: i == selected,
+                button: true,
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () => onChanged(i),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 150),
+                    constraints: const BoxConstraints(minHeight: 44),
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: i == selected ? AppColors.surface : Colors.transparent,
+                      borderRadius: BorderRadius.circular(11),
+                      boxShadow: i == selected
+                          ? const [BoxShadow(color: Color(0x1F101828), blurRadius: 3, offset: Offset(0, 1))]
+                          : null,
+                    ),
+                    child: Text(
+                      labels[i],
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 14,
+                        height: 1.2,
+                        fontWeight: FontWeight.w600,
+                        color: i == selected ? AppColors.ink : AppColors.muted,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }

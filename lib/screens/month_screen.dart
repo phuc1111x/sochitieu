@@ -25,6 +25,7 @@ class _MonthScreenState extends State<MonthScreen> {
   final _controller = PageController();
   final DateTime _today = dateOnly(DateTime.now());
   int _back = 0;
+  bool _byCategory = true; // giữ khi vuốt giữa các tháng, không lưu qua lần mở app
 
   DateTime _monthAt(int back) => DateTime(_today.year, _today.month - back, 1);
 
@@ -60,16 +61,23 @@ class _MonthScreenState extends State<MonthScreen> {
                 : null,
           ),
           Expanded(
-            child: PageView.builder(
+            child: SwipeHint.watch(child: PageView.builder(
               controller: _controller,
               reverse: true,
               itemCount: _maxMonths,
               onPageChanged: (i) => setState(() => _back = i),
               itemBuilder: (context, i) {
                 final m = _monthAt(i);
-                return _MonthPage(key: ValueKey(m), month: m, today: _today, onOpenDay: widget.onOpenDay);
+                return _MonthPage(
+                  key: ValueKey(m),
+                  month: m,
+                  today: _today,
+                  onOpenDay: widget.onOpenDay,
+                  byCategory: _byCategory,
+                  onSection: (v) => setState(() => _byCategory = v),
+                );
               },
-            ),
+            )),
           ),
         ],
       ),
@@ -78,7 +86,17 @@ class _MonthScreenState extends State<MonthScreen> {
 }
 
 class _MonthPage extends StatelessWidget {
-  const _MonthPage({super.key, required this.month, required this.today, required this.onOpenDay});
+  const _MonthPage({
+    super.key,
+    required this.month,
+    required this.today,
+    required this.onOpenDay,
+    required this.byCategory,
+    required this.onSection,
+  });
+
+  final bool byCategory;
+  final ValueChanged<bool> onSection;
 
   final DateTime month;
   final DateTime today;
@@ -132,15 +150,20 @@ class _MonthPage extends StatelessWidget {
             if (data.days.isEmpty)
               const EmptyState(text: 'Chưa có khoản chi nào trong tháng này.')
             else ...[
-              const SectionHeader(title: 'Theo danh mục'),
-              ListCard(children: [
-                for (final c in cats) _CategoryRow(category: c, amount: data.byCategory[c.id]!, total: total),
-              ]),
-              const SizedBox(height: 22),
-              const SectionHeader(title: 'Theo ngày', hint: 'Chạm để xem chi tiết'),
-              ListCard(children: [
-                for (final d in data.days) _DayRow(day: d, onTap: () => onOpenDay(d.date)),
-              ]),
+              SegmentedTabs(
+                labels: const ['Danh mục', 'Từng ngày'],
+                selected: byCategory ? 0 : 1,
+                onChanged: (i) => onSection(i == 0),
+              ),
+              const SizedBox(height: 16),
+              if (byCategory)
+                ListCard(children: [
+                  for (final c in cats) _CategoryRow(category: c, amount: data.byCategory[c.id]!, total: total),
+                ])
+              else
+                ListCard(children: [
+                  for (final d in data.days) _DayRow(day: d, onTap: () => onOpenDay(d.date)),
+                ]),
             ],
           ],
         );

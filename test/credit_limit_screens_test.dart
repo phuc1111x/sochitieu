@@ -42,21 +42,21 @@ void main() {
       usePhoneSize(tester);
       await openFromHost(tester, (c) => openSourceForm(c), SourceFormScreen);
       await tester.enterText(field(0), 'Thẻ VIB');
-      await tester.tap(find.text('Thẻ tín dụng'));
+      await pickSourceType(tester, 'Thẻ tín dụng');
       await tester.pump();
-      expect(find.text('Tổng hạn mức của thẻ'), findsOneWidget);
-      expect(find.text('Nhập tổng hạn mức để xem đã dùng bao nhiêu'), findsOneWidget);
+      expect(find.text('Tổng hạn mức'), findsOneWidget);
+      expect(find.text('Nhập tổng hạn mức'), findsOneWidget);
 
       await tester.enterText(field(1), '10000000');
       await tester.enterText(field(2), '7650000');
       await tester.pump();
       expect(find.text('10.000.000'), findsOneWidget);
       expect(find.text('7.650.000'), findsOneWidget);
-      expect(find.text('App tự tính: đang nợ'), findsOneWidget);
+      expect(find.text('Dư nợ (app tự tính)'), findsOneWidget);
       expect(find.text('2.350.000 đ'), findsOneWidget);
       expect(find.text('Đã dùng 24% hạn mức'), findsOneWidget);
       final list = find.byWidgetPredicate((w) => w is Scrollable && w.axisDirection == AxisDirection.down).first;
-      await tester.scrollUntilVisible(find.text('Số nợ thẻ được trừ khỏi tổng tiền'), 200, scrollable: list);
+      await tester.scrollUntilVisible(find.text('Dư nợ thẻ được trừ khỏi tổng tiền'), 200, scrollable: list);
 
       await saveAndWaitClosed(tester, 'Lưu nguồn tiền', SourceFormScreen);
       final card = (await dbRun(tester, db.sourcesWithBalance)).firstWhere((s) => s.name == 'Thẻ VIB');
@@ -68,11 +68,20 @@ void main() {
       expect(adj.single.note, 'Số dư ban đầu');
     });
 
+    testWidgets('ô Loại là danh sách thả xuống: chọn Thẻ tín dụng hiện hai ô hạn mức', (tester) async {
+      usePhoneSize(tester);
+      await openFromHost(tester, (c) => openSourceForm(c), SourceFormScreen);
+      expect(find.text('Tổng hạn mức'), findsNothing);
+      await pickSourceType(tester, 'Thẻ tín dụng');
+      expect(find.text('Tổng hạn mức'), findsOneWidget);
+      expect(find.text('Hạn mức còn lại'), findsOneWidget);
+    });
+
     testWidgets('hạn mức còn lại lớn hơn tổng hạn mức: báo đỏ, không lưu', (tester) async {
       usePhoneSize(tester);
       await openFromHost(tester, (c) => openSourceForm(c), SourceFormScreen);
       await tester.enterText(field(0), 'Thẻ');
-      await tester.tap(find.text('Thẻ tín dụng'));
+      await pickSourceType(tester, 'Thẻ tín dụng');
       await tester.pump();
       await tester.enterText(field(1), '5000000');
       await tester.enterText(field(2), '6000000');
@@ -90,7 +99,7 @@ void main() {
       usePhoneSize(tester);
       await openFromHost(tester, (c) => openSourceForm(c), SourceFormScreen);
       await tester.enterText(field(0), 'Thẻ');
-      await tester.tap(find.text('Thẻ tín dụng'));
+      await pickSourceType(tester, 'Thẻ tín dụng');
       await tester.pump();
       await tester.enterText(field(2), '1000000');
       await tester.tap(find.text('Lưu nguồn tiền'));
@@ -105,7 +114,7 @@ void main() {
       usePhoneSize(tester);
       await openFromHost(tester, (c) => openSourceForm(c), SourceFormScreen);
       await tester.enterText(field(0), 'Thẻ');
-      await tester.tap(find.text('Thẻ tín dụng'));
+      await pickSourceType(tester, 'Thẻ tín dụng');
       await tester.pump();
       await tester.enterText(field(1), '10000000');
       await tester.tap(find.text('Lưu nguồn tiền'));
@@ -120,7 +129,7 @@ void main() {
       usePhoneSize(tester);
       await openFromHost(tester, (c) => openSourceForm(c), SourceFormScreen);
       await tester.enterText(field(0), 'Thẻ');
-      await tester.tap(find.text('Thẻ tín dụng'));
+      await pickSourceType(tester, 'Thẻ tín dụng');
       await tester.pump();
       await tester.enterText(field(1), '10000000');
       await tester.enterText(field(2), '0');
@@ -191,7 +200,7 @@ void main() {
       final id = await addCard(tester, limit: null);
       final card = await sourceOf(tester, id);
       await openFromHost(tester, (c) => openSourceForm(c, source: card), SourceFormScreen);
-      expect(find.text('Nhập tổng hạn mức để xem đã dùng bao nhiêu'), findsOneWidget);
+      expect(find.text('Nhập tổng hạn mức'), findsOneWidget);
       final limitText = tester.widget<TextField>(field(1)).controller!.text;
       final remainingText = tester.widget<TextField>(field(2)).controller!.text;
       expect((limitText, remainingText), ('', ''));
@@ -211,7 +220,7 @@ void main() {
       final id = await addCard(tester);
       final card = await sourceOf(tester, id);
       await openFromHost(tester, (c) => openSourceForm(c, source: card), SourceFormScreen);
-      await tester.tap(find.text('Ngân hàng'));
+      await pickSourceType(tester, 'Ngân hàng');
       await tester.pump();
       expect(find.text('Số dư hiện tại'), findsOneWidget);
       await saveAndWaitClosed(tester, 'Lưu thay đổi', SourceFormScreen);
@@ -223,13 +232,13 @@ void main() {
   });
 
   group('danh sách và chi tiết thẻ', () {
-    testWidgets('danh sách: thẻ có hạn mức hiện "Còn được tiêu", thẻ cũ giữ kiểu cũ', (tester) async {
+    testWidgets('danh sách: thẻ có hạn mức hiện "Hạn mức còn lại", thẻ cũ giữ kiểu cũ', (tester) async {
       usePhoneSize(tester);
       await addCard(tester);
       await addCard(tester, limit: null, name: 'Thẻ cũ');
       await tester.pumpWidget(const MaterialApp(home: Scaffold(body: SourcesScreen())));
       await pumpUntil(tester, () => shows(find.text('Thẻ VIB')), reason: 'tải danh sách');
-      expect(find.text('Còn được tiêu 7.650.000 đ'), findsOneWidget);
+      expect(find.text('Hạn mức còn lại 7.650.000 đ'), findsOneWidget);
       expect(
           find.byWidgetPredicate((w) => w is Semantics && w.properties.label == 'Đã dùng 24% hạn mức 10.000.000 đ'),
           findsOneWidget);
@@ -242,29 +251,29 @@ void main() {
       final id = await addCard(tester);
       final cash = await dbRun(tester, () async => (await db.sourcesWithBalance()).first.id!);
       await tester.pumpWidget(MaterialApp(home: SourceDetailScreen(sourceId: id)));
-      await pumpUntil(tester, () => shows(find.text('Còn được tiêu')), reason: 'tải chi tiết');
+      await pumpUntil(tester, () => shows(find.text('Hạn mức còn lại')), reason: 'tải chi tiết');
       expect(find.text('7.650.000 đ'), findsOneWidget);
       expect(find.text('Đã dùng 24% hạn mức'), findsOneWidget);
-      expect(find.text('Đang nợ'), findsOneWidget);
+      expect(find.text('Dư nợ'), findsOneWidget);
       expect(find.text('2.350.000 đ'), findsOneWidget);
       expect(find.text('Tổng hạn mức'), findsOneWidget);
       expect(find.text('10.000.000 đ'), findsOneWidget);
-      expect(find.text('Vào tháng này'), findsNothing);
+      expect(find.text('Tiền vào tháng này'), findsNothing);
       expect(find.text('Sửa hạn mức'), findsOneWidget);
 
-      await tester.tap(find.text('Trả thẻ'));
-      await pumpUntil(tester, () => shows(find.text('Lưu chuyển tiền')), reason: 'mở chuyển tiền');
+      await tester.tap(find.text('Thanh toán dư nợ'));
+      await pumpUntil(tester, () => shows(find.text('Lưu thanh toán')), reason: 'mở chuyển tiền');
       await tester.enterText(find.descendant(of: find.byType(MoneyFormScreen), matching: find.byType(TextField)).first,
           '3000000');
-      await saveAndWaitClosed(tester, 'Lưu chuyển tiền', MoneyFormScreen);
+      await saveAndWaitClosed(tester, 'Lưu thanh toán', MoneyFormScreen);
 
       final move = (await dbRun(tester, db.allMoves)).last;
       expect((move.kind, move.fromId, move.toId, move.amount), (MoveKind.move, cash, id, 3000000));
       await pumpUntil(tester, () => shows(find.text('10.650.000 đ')), reason: 'tải lại chi tiết');
-      expect(find.text('Trả thẻ từ Tiền mặt'), findsOneWidget);
+      expect(find.text('Thanh toán dư nợ từ Tiền mặt'), findsOneWidget);
       expect(find.text('+3.000.000 đ'), findsOneWidget);
-      // "Trả thẻ" là cả nút hành động và loại dòng lịch sử.
-      expect(find.text('Trả thẻ'), findsNWidgets(2));
+      // "Thanh toán dư nợ" là cả nút hành động và loại dòng lịch sử.
+      expect(find.text('Thanh toán dư nợ'), findsNWidgets(2));
     });
   });
 
@@ -275,27 +284,53 @@ void main() {
       final id = await addCardWith(tester, opening: -2350000, isDefault: true);
       expect((await sourceOf(tester, id)).isDefault, isTrue);
       await tester.pumpWidget(MaterialApp(home: SourceDetailScreen(sourceId: id)));
-      await pumpUntil(tester, () => shows(find.text('Trả thẻ')), reason: 'tải chi tiết');
+      await pumpUntil(tester, () => shows(find.text('Thanh toán dư nợ')), reason: 'tải chi tiết');
 
-      await tester.tap(find.text('Trả thẻ'));
-      await pumpUntil(tester, () => shows(find.text('Lưu chuyển tiền')), reason: 'mở chuyển tiền');
+      await tester.tap(find.text('Thanh toán dư nợ'));
+      await pumpUntil(tester, () => shows(find.text('Lưu thanh toán')), reason: 'mở chuyển tiền');
       await tester.enterText(
           find.descendant(of: find.byType(MoneyFormScreen), matching: find.byType(TextField)).first, '1000000');
-      await saveAndWaitClosed(tester, 'Lưu chuyển tiền', MoneyFormScreen);
+      await saveAndWaitClosed(tester, 'Lưu thanh toán', MoneyFormScreen);
 
       final move = (await dbRun(tester, db.allMoves)).last;
       expect((move.kind, move.fromId, move.toId), (MoveKind.move, cash, id));
     });
 
-    testWidgets('thẻ đã xoá: vẫn hiện đầu thẻ, không có Trả thẻ / Sửa hạn mức', (tester) async {
+    testWidgets('Trả hết dư nợ điền đúng số nợ; thẻ hết nợ thì ẩn hàng này', (tester) async {
+      usePhoneSize(tester);
+      final id = await addCard(tester);
+      await tester.pumpWidget(MaterialApp(home: SourceDetailScreen(sourceId: id)));
+      await pumpUntil(tester, () => shows(find.text('Thanh toán dư nợ')), reason: 'tải chi tiết');
+      await tester.tap(find.text('Thanh toán dư nợ'));
+      await pumpUntil(tester, () => shows(find.text('Trả hết dư nợ')), reason: 'mở form');
+      expect(find.text('Thanh toán dư nợ thẻ'), findsOneWidget);
+      expect(find.text('Thẻ được thanh toán'), findsOneWidget);
+      expect(find.text('Tiền vào'), findsNothing, reason: 'ẩn nút chọn loại');
+      await tester.tap(find.text('Trả hết dư nợ'));
+      await tester.pump();
+      expect(find.text('2.350.000'), findsOneWidget);
+    });
+
+    testWidgets('thẻ hết nợ: không có hàng Trả hết dư nợ', (tester) async {
+      usePhoneSize(tester);
+      final id = await addCardWith(tester, opening: 0);
+      await tester.pumpWidget(MaterialApp(home: SourceDetailScreen(sourceId: id)));
+      await pumpUntil(tester, () => shows(find.text('Thanh toán dư nợ')), reason: 'tải chi tiết');
+      await tester.tap(find.text('Thanh toán dư nợ'));
+      await pumpUntil(tester, () => shows(find.text('Thẻ được thanh toán')), reason: 'mở form');
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(find.text('Trả hết dư nợ'), findsNothing);
+    });
+
+    testWidgets('thẻ đã xoá: vẫn hiện đầu thẻ, không có Thanh toán dư nợ / Sửa hạn mức', (tester) async {
       usePhoneSize(tester);
       final id = await addCard(tester);
       await dbRun(tester, () => db.archiveSource(id));
       await tester.pumpWidget(MaterialApp(home: SourceDetailScreen(sourceId: id)));
-      await pumpUntil(tester, () => shows(find.text('Còn được tiêu')), reason: 'tải chi tiết');
+      await pumpUntil(tester, () => shows(find.text('Hạn mức còn lại')), reason: 'tải chi tiết');
       expect(find.text('Đã dùng 24% hạn mức'), findsOneWidget);
       expect(find.text('Tổng hạn mức'), findsOneWidget);
-      expect(find.text('Trả thẻ'), findsNothing);
+      expect(find.text('Thanh toán dư nợ'), findsNothing);
       expect(find.text('Sửa hạn mức'), findsNothing);
       expect(find.byTooltip('Sửa thẻ và hạn mức'), findsNothing);
     });
@@ -314,7 +349,7 @@ void main() {
       expect(find.text('còn 7.650.000 đ'), findsOneWidget);
       await tester.enterText(find.byType(TextField).first, '50000');
       await tester.pump();
-      expect(find.text('Sau khi lưu, thẻ còn được tiêu 7.600.000 đ'), findsOneWidget);
+      expect(find.text('Sau khi lưu, hạn mức còn lại 7.600.000 đ'), findsOneWidget);
       expect(find.textContaining('Vượt hạn mức'), findsNothing);
     });
 
@@ -324,7 +359,7 @@ void main() {
       await tester.enterText(find.byType(TextField).first, '8000000');
       await tester.pump();
       expect(find.text('Vượt hạn mức 350.000 đ. Ngân hàng có thể từ chối giao dịch.'), findsOneWidget);
-      expect(find.text('Sau khi lưu, thẻ nợ 10.350.000 đ'), findsOneWidget);
+      expect(find.text('Sau khi lưu, dư nợ thẻ 10.350.000 đ'), findsOneWidget);
 
       await saveAndWaitClosed(tester, 'Lưu chi tiêu', ExpenseFormScreen);
       expect((await sourceOf(tester, card)).available, -350000);
@@ -334,7 +369,7 @@ void main() {
   test('câu "Sau khi lưu" và cảnh báo của thẻ có hạn mức', () {
     final card = MoneySource(name: 'Thẻ VIB', type: 'credit', createdAt: 0, creditLimit: 10000000);
     final ok = afterSaveParts(card, -2400000);
-    expect('${ok.text}${ok.amount}', 'Sau khi lưu, thẻ còn được tiêu 7.600.000 đ');
+    expect('${ok.text}${ok.amount}', 'Sau khi lưu, hạn mức còn lại 7.600.000 đ');
     expect(ok.negative, isFalse);
     expect(overLimitText(card, -2400000), isNull);
     expect(overLimitText(card, -10350000), 'Vượt hạn mức 350.000 đ. Ngân hàng có thể từ chối giao dịch.');

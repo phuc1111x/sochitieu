@@ -219,7 +219,15 @@ class _BackupScreenState extends State<BackupScreen> {
         OutlinedButton.icon(
           onPressed: _busy ? null : _restore,
           icon: const Icon(Icons.cloud_download_outlined),
-          label: const Text('Khôi phục từ Google Drive'),
+          label: const Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('Khôi phục từ Google Drive'),
+              SizedBox(height: 2),
+              Text('Thay toàn bộ dữ liệu trên máy này',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w400, color: AppColors.danger)),
+            ],
+          ),
         ),
         const SizedBox(height: 16),
         _card(
@@ -244,7 +252,7 @@ class _BackupScreenState extends State<BackupScreen> {
                   onChanged: _backup.setWifiOnly,
                   title: const Text('Chỉ tự động sao lưu khi có Wi-Fi',
                       style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
-                  subtitle: const Text('Không tốn dung lượng 4G',
+                  subtitle: const Text('Không dùng dữ liệu di động',
                       style: TextStyle(fontSize: 13, color: AppColors.muted)),
                 ),
               ),

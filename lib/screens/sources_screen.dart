@@ -17,14 +17,14 @@ void showMessage(BuildContext context, String message) {
     ..showSnackBar(SnackBar(content: Text(message)));
 }
 
-/// Mở "Chuyển tiền", nhưng chỉ khi có ít nhất hai nguồn tiền.
-/// [toId] chọn sẵn nguồn nhận (ví dụ "Trả thẻ": chuyển từ nguồn khác vào thẻ tín dụng).
-Future<void> openTransfer(BuildContext context, List<MoneySource> active, {int? fromId, int? toId}) async {
+/// Mở "Chuyển giữa các nguồn", nhưng chỉ khi có ít nhất hai nguồn tiền.
+/// [toId] chọn sẵn nguồn nhận (ví dụ "Thanh toán dư nợ": chuyển từ nguồn khác vào thẻ tín dụng).
+Future<void> openTransfer(BuildContext context, List<MoneySource> active, {int? fromId, int? toId, bool cardPayment = false}) async {
   if (active.length < 2) {
-    showMessage(context, 'Cần ít nhất hai nguồn tiền để chuyển tiền');
+    showMessage(context, 'Cần ít nhất hai nguồn tiền để chuyển giữa các nguồn');
     return;
   }
-  await openMoneyForm(context, kind: MoveKind.move, fromId: fromId, toId: toId);
+  await openMoneyForm(context, kind: MoveKind.move, fromId: fromId, toId: toId, cardPayment: cardPayment);
 }
 
 /// Màn "Nguồn tiền" (tab thứ 3). [asRoute] = mở từ form chi tiêu ("Quản lý"), có nút quay lại.
@@ -98,11 +98,10 @@ class SourcesScreen extends StatelessWidget {
           label: 'Tổng tiền hiện có',
           total: formatBalance(total),
           footer: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(child: _Stat(label: 'Đã chi tháng này', value: formatMoney(spent))),
+              const Expanded(child: Text('Đã chi tháng này', style: TextStyle(fontSize: 13))),
               const SizedBox(width: 12),
-              Expanded(child: _Stat(label: 'Số nguồn tiền', value: '${sources.length} nguồn')),
+              Text(formatMoney(spent), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
             ],
           ),
         ),
@@ -112,7 +111,7 @@ class SourcesScreen extends StatelessWidget {
             Expanded(
               child: ActionTile(
                 icon: Icons.download_outlined,
-                label: 'Thêm tiền',
+                label: 'Tiền vào',
                 onTap: () => openMoneyForm(context, kind: MoveKind.income, toId: def?.id),
               ),
             ),
@@ -120,7 +119,7 @@ class SourcesScreen extends StatelessWidget {
             Expanded(
               child: ActionTile(
                 icon: Icons.swap_horiz,
-                label: 'Chuyển tiền',
+                label: 'Chuyển giữa các nguồn',
                 onTap: () => openTransfer(context, sources, fromId: def?.id),
               ),
             ),
@@ -134,26 +133,7 @@ class SourcesScreen extends StatelessWidget {
   }
 }
 
-class _Stat extends StatelessWidget {
-  const _Stat({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label, style: const TextStyle(fontSize: 12)),
-        const SizedBox(height: 2),
-        Text(value, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-      ],
-    );
-  }
-}
-
-/// Nút hành động trắng viền xám (Thêm tiền / Chuyển tiền / Chi tiêu).
+/// Nút hành động trắng viền xám (Tiền vào / Chuyển giữa các nguồn / Thêm chi tiêu).
 /// [vertical] = biểu tượng nằm trên chữ (màn chi tiết nguồn).
 class ActionTile extends StatelessWidget {
   const ActionTile({super.key, required this.icon, required this.label, required this.onTap, this.vertical = false});
@@ -165,16 +145,16 @@ class ActionTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Chữ 14 px, được xuống hai dòng, căn giữa, không cắt "...".
+    final text = Text(
+      label,
+      textAlign: TextAlign.center,
+      style: TextStyle(fontSize: vertical ? 13 : 14, height: 1.2, fontWeight: FontWeight.w600),
+    );
     final children = [
       Icon(icon, color: AppColors.accent, size: vertical ? 22 : 20),
       SizedBox(width: vertical ? 0 : 8, height: vertical ? 6 : 0),
-      // Màn hẹp hoặc chữ hệ thống to: thu nhỏ chữ thay vì tràn ra ngoài.
-      Flexible(
-        child: FittedBox(
-          fit: BoxFit.scaleDown,
-          child: Text(label, style: TextStyle(fontSize: vertical ? 13 : 15, fontWeight: FontWeight.w600)),
-        ),
-      ),
+      if (vertical) text else Flexible(child: text),
     ];
     return Material(
       color: AppColors.surface,
@@ -186,10 +166,10 @@ class ActionTile extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         onTap: onTap,
         child: Container(
-          height: vertical ? 72 : 52,
-          padding: const EdgeInsets.symmetric(horizontal: 6),
+          constraints: BoxConstraints(minHeight: vertical ? 80 : 56),
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
           child: vertical
-              ? Column(mainAxisAlignment: MainAxisAlignment.center, children: children)
+              ? Column(mainAxisSize: MainAxisSize.min, mainAxisAlignment: MainAxisAlignment.center, children: children)
               : Row(mainAxisAlignment: MainAxisAlignment.center, children: children),
         ),
       ),
@@ -209,13 +189,17 @@ class _SourceTile extends StatelessWidget {
         ? ' · Mặc định'
         : !source.inTotal
             ? ' · Không tính vào tổng'
-            : source.balance < 0
+            : source.isCredit && source.balance < 0
                 ? ' · Đang nợ'
                 : '';
+    // Nguồn thường bị âm: chạm vào sửa số dư (không mở màn chi tiết).
+    final negative = !source.isCredit && source.balance < 0;
     return InkWell(
-      onTap: () => Navigator.of(context).push(
-        MaterialPageRoute<void>(builder: (_) => SourceDetailScreen(sourceId: source.id!)),
-      ),
+      onTap: () => negative
+          ? openSourceForm(context, source: source)
+          : Navigator.of(context).push(
+              MaterialPageRoute<void>(builder: (_) => SourceDetailScreen(sourceId: source.id!)),
+            ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         child: Row(
@@ -237,7 +221,7 @@ class _SourceTile extends StatelessWidget {
                     FittedBox(
                       fit: BoxFit.scaleDown,
                       alignment: Alignment.centerLeft,
-                      child: Text('Còn được tiêu ${formatBalance(source.available)}',
+                      child: Text('Hạn mức còn lại ${formatBalance(source.available)}',
                           style: const TextStyle(fontSize: 13, color: AppColors.muted)),
                     ),
                     const SizedBox(height: 6),
@@ -246,7 +230,10 @@ class _SourceTile extends StatelessWidget {
                       height: 6,
                       label: 'Đã dùng ${source.usedPercent}% hạn mức ${formatMoney(source.creditLimit!)}',
                     ),
-                  ] else
+                  ] else if (negative)
+                    const Text('Số dư âm – chạm để cập nhật',
+                        style: TextStyle(fontSize: 13, color: AppColors.danger))
+                  else
                     Text('${type.name}$extra', style: const TextStyle(fontSize: 13, color: AppColors.muted)),
                 ],
               ),

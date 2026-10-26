@@ -65,7 +65,7 @@ class DayScreenState extends State<DayScreen> {
                 : null,
           ),
           Expanded(
-            child: PageView.builder(
+            child: SwipeHint.watch(child: PageView.builder(
               controller: _controller,
               reverse: true,
               itemCount: _maxDays,
@@ -74,7 +74,7 @@ class DayScreenState extends State<DayScreen> {
                 final day = _dayAt(i);
                 return _DayPage(key: ValueKey(day), day: day, back: i);
               },
-            ),
+            )),
           ),
         ],
       ),

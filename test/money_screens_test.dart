@@ -44,7 +44,7 @@ void main() {
     expect(history.where((e) => e.kind == MoveKind.adjust), isEmpty);
   });
 
-  testWidgets('chọn Chuyển tiền rồi quay lại Thêm tiền: chỉ nguồn nhận tăng, không có nguồn chuyển', (tester) async {
+  testWidgets('chọn Chuyển giữa các nguồn rồi quay lại Tiền vào: chỉ nguồn nhận tăng, không có nguồn chuyển', (tester) async {
     usePhoneSize(tester);
     final cash = await cashId(tester);
     final vcb = await dbRun(tester, () async {
@@ -55,15 +55,15 @@ void main() {
     await openFromHost(tester, (c) => openMoneyForm(c, kind: MoveKind.income, toId: vcb), MoneyFormScreen);
     await pumpUntil(tester, () => shows(find.text('Vào nguồn')), reason: 'tải nguồn tiền');
 
-    await tester.tap(find.text('Chuyển tiền'));
+    await tester.tap(find.text('Chuyển giữa các nguồn'));
     await tester.pump();
     expect(find.text('Từ nguồn'), findsOneWidget);
-    await tester.tap(find.text('Thêm tiền'));
+    await tester.tap(find.text('Tiền vào'));
     await tester.pump();
     expect(find.text('Từ nguồn'), findsNothing);
 
     await tester.enterText(find.byType(TextField).first, '200000');
-    await saveAndWaitClosed(tester, 'Lưu khoản tiền vào', MoneyFormScreen);
+    await saveAndWaitClosed(tester, 'Lưu tiền vào', MoneyFormScreen);
 
     final move = (await dbRun(tester, db.allMoves)).last;
     expect(move.kind, MoveKind.income);
@@ -71,6 +71,23 @@ void main() {
     expect(move.toId, vcb);
     expect(await balanceOf(tester, cash), 500000);
     expect(await balanceOf(tester, vcb), 3200000);
+  });
+
+  testWidgets('Đổi chiều: hoán đổi nguồn đi và nguồn đến', (tester) async {
+    usePhoneSize(tester);
+    final cash = await cashId(tester);
+    final vcb = await dbRun(tester, () async {
+      await db.updateSource((await db.sourceById(cash))!, newBalance: 500000);
+      return db.insertSource(MoneySource(name: 'Vietcombank', type: 'bank', createdAt: now), openingBalance: 3000000);
+    });
+    await openFromHost(tester, (c) => openMoneyForm(c, kind: MoveKind.move, fromId: cash, toId: vcb), MoneyFormScreen);
+    await pumpUntil(tester, () => shows(find.text('Đổi chiều')), reason: 'tải nguồn tiền');
+    await tester.enterText(find.byType(TextField).first, '100000');
+    await tester.tap(find.text('Đổi chiều'));
+    await tester.pump();
+    await saveAndWaitClosed(tester, 'Lưu', MoneyFormScreen);
+    final move = (await dbRun(tester, db.allMoves)).last;
+    expect((move.fromId, move.toId), (vcb, cash));
   });
 
   testWidgets('danh sách theo ngày: dòng phụ "Danh mục · Nguồn"', (tester) async {

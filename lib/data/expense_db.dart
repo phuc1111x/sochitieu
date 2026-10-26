@@ -415,7 +415,7 @@ class ExpenseDb {
 
   void _checkMove(MoneyMove m) {
     if (m.kind == MoveKind.move && (m.fromId == null || m.toId == null || m.fromId == m.toId)) {
-      throw const DataException('Chọn hai nguồn khác nhau để chuyển tiền');
+      throw const DataException('Chọn hai nguồn khác nhau để chuyển giữa các nguồn');
     }
     if (m.kind != MoveKind.move && m.toId == null) {
       throw const DataException('Chọn nguồn nhận tiền');

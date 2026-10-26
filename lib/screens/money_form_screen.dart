@@ -8,7 +8,7 @@ import '../utils/format.dart';
 import '../widgets/common.dart';
 import '../widgets/form_fields.dart';
 
-/// Mở màn "Thêm tiền / Chuyển tiền". [move] = sửa một giao dịch đã có,
+/// Mở màn "Tiền vào / Chuyển giữa các nguồn". [move] = sửa một giao dịch đã có,
 /// nếu không thì [kind] (`in` hoặc `move`) cùng nguồn chọn sẵn [fromId] / [toId].
 Future<void> openMoneyForm(
   BuildContext context, {
@@ -16,11 +16,18 @@ Future<void> openMoneyForm(
   String kind = MoveKind.income,
   int? fromId,
   int? toId,
+  bool cardPayment = false,
 }) async {
   final messenger = ScaffoldMessenger.of(context);
   final message = await Navigator.of(context).push<String>(
     MaterialPageRoute(
-      builder: (_) => MoneyFormScreen(move: move, kind: move?.kind ?? kind, fromId: fromId, toId: toId),
+      builder: (_) => MoneyFormScreen(
+        move: move,
+        kind: move?.kind ?? kind,
+        fromId: fromId,
+        toId: toId,
+        cardPayment: cardPayment,
+      ),
     ),
   );
   if (message != null) {
@@ -31,12 +38,15 @@ Future<void> openMoneyForm(
 }
 
 class MoneyFormScreen extends StatefulWidget {
-  const MoneyFormScreen({super.key, this.move, required this.kind, this.fromId, this.toId});
+  const MoneyFormScreen({super.key, this.move, required this.kind, this.fromId, this.toId, this.cardPayment = false});
 
   final MoneyMove? move;
   final String kind;
   final int? fromId;
   final int? toId;
+
+  /// "Thanh toán dư nợ thẻ": biểu mẫu chuyển tiền vào thẻ tín dụng (chỉ khi thêm mới).
+  final bool cardPayment;
 
   @override
   State<MoneyFormScreen> createState() => _MoneyFormScreenState();
@@ -57,6 +67,7 @@ class _MoneyFormScreenState extends State<MoneyFormScreen> {
 
   bool get _isEdit => widget.move != null;
   bool get _isMove => _kind == MoveKind.move;
+  bool get _cardPay => widget.cardPayment && !_isEdit && _isMove;
   int get _amountValue => parseAmount(_amount.text);
 
   @override
@@ -96,7 +107,7 @@ class _MoneyFormScreenState extends State<MoneyFormScreen> {
 
   bool _exists(int? id) => id != null && _sources.any((s) => s.id == id);
 
-  /// Nguồn trả tiền khi chỉ chọn sẵn nguồn nhận (ví dụ "Trả thẻ"): nguồn mặc định nếu nó không phải
+  /// Nguồn trả tiền khi chỉ chọn sẵn nguồn nhận (ví dụ "Thanh toán dư nợ"): nguồn mặc định nếu nó không phải
   /// nguồn nhận và không phải thẻ tín dụng; nếu không thì nguồn đầu tiên không phải thẻ tín dụng; rồi
   /// nguồn bất kỳ khác nguồn nhận; không còn nguồn nào khác thì giữ như cũ (chính nguồn nhận).
   int _payerFor(int toId) {
@@ -110,7 +121,7 @@ class _MoneyFormScreenState extends State<MoneyFormScreen> {
     return others.isEmpty ? toId : others.first.id!;
   }
 
-  /// Chọn sẵn nguồn còn trống: tiền vào → nguồn mặc định; chuyển tiền → từ nguồn mặc định sang nguồn khác.
+  /// Chọn sẵn nguồn còn trống: tiền vào → nguồn mặc định; chuyển giữa các nguồn → từ nguồn mặc định sang nguồn khác.
   void _fillDefaults() {
     if (_isMove) {
       if (!_exists(_fromId)) _fromId = _exists(_toId) ? _payerFor(_toId!) : _defaultId;
@@ -126,16 +137,16 @@ class _MoneyFormScreenState extends State<MoneyFormScreen> {
     // Chưa tải xong nguồn tiền thì chưa biết có đủ hai nguồn để chuyển hay không.
     if (kind == _kind || !_loaded || _isEdit) return;
     if (kind == MoveKind.move && _active.length < 2) {
-      _show('Cần ít nhất hai nguồn tiền để chuyển tiền');
+      _show('Cần ít nhất hai nguồn tiền để chuyển giữa các nguồn');
       return;
     }
     setState(() {
       if (kind == MoveKind.move) {
-        // Nguồn đang chọn ở "Thêm tiền" trở thành nguồn chuyển đi.
+        // Nguồn đang chọn ở "Tiền vào" trở thành nguồn chuyển đi.
         _fromId = _toId;
         _toId = null;
       } else {
-        // Quay lại "Thêm tiền": tiền vào lại nguồn đã chọn trước đó, bỏ nguồn chuyển.
+        // Quay lại "Tiền vào": tiền vào lại nguồn đã chọn trước đó, bỏ nguồn chuyển.
         _toId = _fromId ?? _toId;
         _fromId = null;
       }
@@ -180,7 +191,7 @@ class _MoneyFormScreenState extends State<MoneyFormScreen> {
     final to = _byId(_toId);
     final from = _isMove ? _byId(_fromId) : null;
     if (to == null || (_isMove && (from == null || from.id == to.id))) {
-      _show(_isMove ? 'Chọn hai nguồn khác nhau để chuyển tiền' : 'Chọn nguồn nhận tiền');
+      _show(_isMove ? 'Chọn hai nguồn khác nhau để chuyển giữa các nguồn' : 'Chọn nguồn nhận tiền');
       return;
     }
     setState(() => _saving = true);
@@ -208,7 +219,7 @@ class _MoneyFormScreenState extends State<MoneyFormScreen> {
           ? 'Đã lưu thay đổi'
           : _isMove
               ? 'Đã chuyển ${formatMoney(amount)} sang ${to.name}'
-              : 'Đã thêm ${formatMoney(amount)} vào ${to.name}');
+              : 'Đã ghi ${formatMoney(amount)} tiền vào ${to.name}');
     } catch (e) {
       if (mounted) _show(e is DataException ? e.message : 'Không lưu được, vui lòng thử lại. ($e)');
     } finally {
@@ -222,7 +233,7 @@ class _MoneyFormScreenState extends State<MoneyFormScreen> {
       builder: (context) => AlertDialog(
         title: const Text('Xoá giao dịch này?'),
         content: Text('${formatMoney(widget.move!.amount)} · '
-            '${widget.move!.kind == MoveKind.move ? 'Chuyển tiền' : 'Thêm tiền'}\n'
+            '${widget.move!.kind == MoveKind.move ? 'Chuyển giữa các nguồn' : 'Tiền vào'}\n'
             'Số dư các nguồn liên quan sẽ được tính lại. Không thể hoàn tác sau khi xoá.'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Huỷ')),
@@ -249,45 +260,62 @@ class _MoneyFormScreenState extends State<MoneyFormScreen> {
           icon: const Icon(Icons.close),
           onPressed: () => Navigator.of(context).pop(),
         ),
-        title: Text(_isEdit
-            ? (_isMove ? 'Sửa chuyển tiền' : 'Sửa thêm tiền')
-            : (_isMove ? 'Chuyển tiền' : 'Thêm tiền')),
+        title: Text(_cardPay
+            ? 'Thanh toán dư nợ thẻ'
+            : _isEdit
+                ? (_isMove ? 'Sửa chuyển giữa các nguồn' : 'Sửa tiền vào')
+                : (_isMove ? 'Chuyển giữa các nguồn' : 'Tiền vào')),
       ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
         children: [
           // Khi sửa không đổi được loại giao dịch: nút chọn bị làm mờ và không bấm được.
-          Opacity(
-            opacity: _isEdit ? 0.5 : 1,
-            child: IgnorePointer(
-              ignoring: _isEdit,
-              child: _KindSwitch(kind: _kind, onChanged: _setKind),
+          if (!_cardPay) ...[
+            Opacity(
+              opacity: _isEdit ? 0.5 : 1,
+              child: IgnorePointer(
+                ignoring: _isEdit,
+                child: SegmentedTabs(
+                  labels: const ['Tiền vào', 'Chuyển giữa các nguồn'],
+                  selected: _isMove ? 1 : 0,
+                  onChanged: (i) => _setKind(i == 1 ? MoveKind.move : MoveKind.income),
+                ),
+              ),
             ),
-          ),
-          const SizedBox(height: 22),
+            const SizedBox(height: 18),
+          ],
           AmountCard(
             controller: _amount,
             autofocus: !_isEdit,
+            labelTrailing: DateChip(date: _date, onChanged: (d) => setState(() => _date = d)),
+            footer: _buildDebtRow(),
             onChanged: (_) => setState(() {}),
           ),
           if (_loaded) ...[
             if (_isMove) ...[
-              const SizedBox(height: 22),
+              const SizedBox(height: 18),
               const FieldLabel('Từ nguồn'),
-              _SourceChips(sources: _sources, selected: _fromId, onPick: _pickFrom),
+              _sourcePicker('Từ nguồn', _fromId, _pickFrom),
             ],
-            const SizedBox(height: 22),
-            FieldLabel(_isMove ? 'Đến nguồn' : 'Vào nguồn'),
-            _SourceChips(sources: _sources, selected: _toId, onPick: _pickTo),
-            const SizedBox(height: 22),
+            const SizedBox(height: 18),
+            FieldLabel(
+              _cardPay ? 'Thẻ được thanh toán' : (_isMove ? 'Đến nguồn' : 'Vào nguồn'),
+              trailing: _isMove && !_cardPay ? _swapButton() : null,
+            ),
+            _sourcePicker('Đến nguồn', _toId, _pickTo),
+            const SizedBox(height: 18),
             _buildPreview(),
           ],
-          const SizedBox(height: 22),
-          const FieldLabel('Ngày'),
-          DateField(date: _date, onChanged: (d) => setState(() => _date = d)),
-          const SizedBox(height: 22),
+          const SizedBox(height: 18),
           const NoteLabel(),
-          TextBox(controller: _note, hint: _isMove ? 'Ví dụ: Rút tiền mặt' : 'Ví dụ: Lương tháng 10'),
+          TextBox(
+            controller: _note,
+            hint: _cardPay
+                ? 'Ví dụ: Thanh toán sao kê tháng 10'
+                : _isMove
+                    ? 'Ví dụ: Rút tiền mặt'
+                    : 'Ví dụ: Lương tháng 10',
+          ),
           if (_isEdit) ...[
             const SizedBox(height: 16),
             TextButton.icon(
@@ -316,13 +344,97 @@ class _MoneyFormScreenState extends State<MoneyFormScreen> {
               icon: const Icon(Icons.check),
               label: Text(_isEdit
                   ? 'Lưu thay đổi'
-                  : _isMove
-                      ? 'Lưu chuyển tiền'
-                      : 'Lưu khoản tiền vào'),
+                  : _cardPay
+                      ? 'Lưu thanh toán'
+                      : _isMove
+                          ? 'Lưu'
+                          : 'Lưu tiền vào'),
             ),
           ),
         ),
       ),
+    );
+  }
+
+  /// Ô chọn nguồn dạng thả xuống: biểu tượng, tên và số dư bên phải (thẻ tín dụng: "Dư nợ X").
+  Widget _sourcePicker(String label, int? selected, ValueChanged<int> onPick) {
+    return PickerField<int>(
+      semanticLabel: label,
+      selected: selected ?? -1,
+      onChanged: onPick,
+      options: [
+        for (final s in _sources)
+          PickerOption<int>(
+            value: s.id!,
+            leading: (size) => SourceIcon(type: s.sourceType, size: size),
+            title: s.name,
+            trailing: s.isCredit && s.balance < 0 ? 'Dư nợ ${formatMoney(-s.balance)}' : formatBalance(s.balance),
+            trailingColor: !s.isCredit && s.balance < 0 ? AppColors.danger : AppColors.muted,
+          ),
+      ],
+    );
+  }
+
+  void _swap() {
+    if (_fromId == null || _toId == null) return;
+    setState(() {
+        final from = _fromId;
+        _fromId = _toId;
+        _toId = from;
+    });
+  }
+
+  Widget _swapButton() {
+    return Material(
+      color: AppColors.selectedFill,
+      shape: const StadiumBorder(side: BorderSide(color: AppColors.line)),
+      child: InkWell(
+        customBorder: const StadiumBorder(),
+        onTap: _swap,
+        child: const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.swap_vert, size: 16, color: AppColors.accent),
+              SizedBox(width: 4),
+              Text('Đổi chiều', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// "Dư nợ hiện tại X đ" + nút "Trả hết dư nợ" (chỉ khi thanh toán thẻ còn dư nợ).
+  Widget? _buildDebtRow() {
+    if (!_cardPay) return null;
+    final card = _byId(_toId);
+    if (card == null || !card.isCredit || card.balance >= 0) return null;
+    final debt = -card.balance;
+    return Row(
+      children: [
+        Expanded(
+          child: Text.rich(
+            TextSpan(children: [
+              const TextSpan(text: 'Dư nợ hiện tại '),
+              TextSpan(
+                  text: formatMoney(debt),
+                  style: const TextStyle(fontWeight: FontWeight.w700, color: AppColors.danger)),
+            ]),
+            style: const TextStyle(fontSize: 13, color: AppColors.muted),
+          ),
+        ),
+        TextButton(
+          onPressed: () => setState(() => setAmount(_amount, debt.clamp(0, maxAmount))),
+          style: TextButton.styleFrom(
+            minimumSize: const Size(0, 36),
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            textStyle: const TextStyle(fontFamily: 'BeVietnamPro', fontSize: 13, fontWeight: FontWeight.w600),
+          ),
+          child: const Text('Trả hết dư nợ'),
+        ),
+      ],
     );
   }
 
@@ -380,136 +492,15 @@ class _MoneyFormScreenState extends State<MoneyFormScreen> {
               ),
             ),
           if (_isMove)
-            const Padding(
-              padding: EdgeInsets.only(top: 6),
-              child: Text('Chuyển tiền không tính là chi tiêu, tổng tiền hiện có không đổi.',
-                  style: TextStyle(fontSize: 12, color: AppColors.muted)),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Hai nút "Thêm tiền" | "Chuyển tiền" dạng segmented.
-class _KindSwitch extends StatelessWidget {
-  const _KindSwitch({required this.kind, required this.onChanged});
-
-  final String kind;
-  final ValueChanged<String> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    Widget tab(String id, String label) {
-      final selected = id == kind;
-      return Expanded(
-        child: Semantics(
-          selected: selected,
-          button: true,
-          child: GestureDetector(
-            onTap: () => onChanged(id),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 150),
-              height: 44,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: selected ? AppColors.surface : Colors.transparent,
-                borderRadius: BorderRadius.circular(11),
-                boxShadow: selected
-                    ? const [BoxShadow(color: Color(0x1F101828), blurRadius: 3, offset: Offset(0, 1))]
-                    : null,
-              ),
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
               child: Text(
-                label,
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
-                  color: selected ? AppColors.ink : AppColors.muted,
-                ),
-              ),
+                  _cardPay
+                      ? 'Không tính là chi tiêu: các khoản đã tính lúc quẹt thẻ.'
+                      : 'Không tính là chi tiêu, tổng tiền hiện có không đổi.',
+                  style: const TextStyle(fontSize: 12, color: AppColors.muted)),
             ),
-          ),
-        ),
-      );
-    }
-
-    return Container(
-      padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(color: AppColors.segmentTrack, borderRadius: BorderRadius.circular(14)),
-      child: Row(
-        children: [
-          tab(MoveKind.income, 'Thêm tiền'),
-          const SizedBox(width: 4),
-          tab(MoveKind.move, 'Chuyển tiền'),
         ],
-      ),
-    );
-  }
-}
-
-/// Dải thẻ nguồn tiền cuộn ngang, mỗi thẻ có tên và số dư.
-class _SourceChips extends StatelessWidget {
-  const _SourceChips({required this.sources, required this.selected, required this.onPick});
-
-  final List<MoneySource> sources;
-  final int? selected;
-  final ValueChanged<int> onPick;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 68,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        clipBehavior: Clip.none,
-        itemCount: sources.length,
-        separatorBuilder: (_, _) => const SizedBox(width: 10),
-        itemBuilder: (context, i) {
-          final s = sources[i];
-          final sel = s.id == selected;
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 4),
-            child: Material(
-              color: sel ? AppColors.selectedFill : AppColors.surface,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-                side: BorderSide(color: sel ? AppColors.accent : AppColors.line, width: sel ? 2 : 1),
-              ),
-              child: InkWell(
-                borderRadius: BorderRadius.circular(16),
-                onTap: () => onPick(s.id!),
-                child: Semantics(
-                  selected: sel,
-                  button: true,
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(10, 0, 14, 0),
-                    child: Row(
-                      children: [
-                        SourceIcon(type: s.sourceType, size: 36),
-                        const SizedBox(width: 10),
-                        Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(s.name, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
-                            const SizedBox(height: 1),
-                            Text(
-                              formatBalance(s.balance),
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: s.balance < 0 ? AppColors.danger : AppColors.muted,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          );
-        },
       ),
     );
   }

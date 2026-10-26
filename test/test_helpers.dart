@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
 import 'package:sochitieu/data/expense_db.dart';
+import 'package:sochitieu/widgets/form_fields.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 /// Tạo database mới trong thư mục tạm và gắn làm `ExpenseDb.instance` cho một test.
@@ -67,4 +68,14 @@ Future<void> saveAndWaitClosed(WidgetTester tester, String button, Type screen) 
   // Cho SnackBar báo kết quả chạy hết để không còn timer treo khi test kết thúc.
   await tester.pump(const Duration(seconds: 5));
   await tester.pump(const Duration(seconds: 1));
+}
+
+/// Chọn loại nguồn tiền ở ô thả xuống "Loại" của form nguồn tiền.
+Future<void> pickSourceType(WidgetTester tester, String label) async {
+  await tester.tap(find.byType(PickerField<String>));
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 300));
+  await tester.tap(find.text(label).last);
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 300));
 }

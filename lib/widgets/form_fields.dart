@@ -46,8 +46,15 @@ class AmountCard extends StatelessWidget {
     this.quickAmounts = const [],
     this.onQuickAdd,
     this.hint,
+    this.labelTrailing,
+    this.footer,
   });
 
+  /// Dòng thêm bên dưới ô nhập (ví dụ "Dư nợ hiện tại ... Trả hết dư nợ").
+  final Widget? footer;
+
+  /// Widget bên phải dòng nhãn (ví dụ [DateChip]).
+  final Widget? labelTrailing;
   final TextEditingController controller;
   final String label;
   final double fontSize;
@@ -74,7 +81,18 @@ class AmountCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(label, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: AppColors.muted)),
+          if (labelTrailing == null)
+            Text(label, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: AppColors.muted))
+          else
+            Row(
+              children: [
+                Expanded(
+                  child: Text(label,
+                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: AppColors.muted)),
+                ),
+                labelTrailing!,
+              ],
+            ),
           Row(
             children: [
               Expanded(
@@ -131,6 +149,7 @@ class AmountCard extends StatelessWidget {
               ],
             ),
           ],
+          if (footer != null) ...[const SizedBox(height: 12), footer!],
           if (hint != null) ...[
             const SizedBox(height: 12),
             Text(hint!, style: const TextStyle(fontSize: 13, height: 1.5, color: AppColors.muted)),
@@ -225,9 +244,10 @@ class FieldLabel extends StatelessWidget {
   }
 }
 
-/// Ô chọn ngày; ngày tương lai không chọn được.
-class DateField extends StatelessWidget {
-  const DateField({super.key, required this.date, required this.onChanged, this.helpText = 'Chọn ngày'});
+/// Nút bấm dạng viên thuốc ở dòng nhãn "Số tiền": biểu tượng lịch, "Hôm nay, 26/10", mũi tên xuống.
+/// Bấm để chọn ngày; ngày tương lai không chọn được.
+class DateChip extends StatelessWidget {
+  const DateChip({super.key, required this.date, required this.onChanged, this.helpText = 'Chọn ngày'});
 
   final DateTime date;
   final ValueChanged<DateTime> onChanged;
@@ -249,30 +269,40 @@ class DateField extends StatelessWidget {
   Widget build(BuildContext context) {
     final back = daysBefore(dateOnly(DateTime.now()), date);
     final text = switch (back) {
-      0 => 'Hôm nay, ${formatDate(date)}',
-      1 => 'Hôm qua, ${formatDate(date)}',
+      0 => 'Hôm nay, ${formatDayMonth(date)}',
+      1 => 'Hôm qua, ${formatDayMonth(date)}',
       _ => formatFullDate(date),
     };
-    return Material(
-      color: AppColors.surface,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: const BorderSide(color: AppColors.line),
-      ),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(16),
-        onTap: () => _pick(context),
-        child: SizedBox(
-          height: 56,
-          child: Row(
-            children: [
-              const SizedBox(width: 16),
-              const Icon(Icons.calendar_today_outlined, color: AppColors.accent, size: 22),
-              const SizedBox(width: 12),
-              Expanded(child: Text(text, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500))),
-              const Icon(Icons.chevron_right, color: AppColors.muted),
-              const SizedBox(width: 12),
-            ],
+    return Semantics(
+      label: 'Chọn ngày, $text',
+      button: true,
+      excludeSemantics: true,
+      child: Material(
+        color: AppColors.selectedFill,
+        shape: const StadiumBorder(side: BorderSide(color: AppColors.line)),
+        child: InkWell(
+          customBorder: const StadiumBorder(),
+          onTap: () => _pick(context),
+          child: SizedBox(
+            height: 36,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.calendar_today_outlined, color: AppColors.accent, size: 16),
+                  const SizedBox(width: 6),
+                  Flexible(
+                    child: Text(text,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.ink)),
+                  ),
+                  const SizedBox(width: 2),
+                  const Icon(Icons.expand_more, color: AppColors.muted, size: 18),
+                ],
+              ),
+            ),
           ),
         ),
       ),
@@ -391,7 +421,12 @@ class _PickerFieldState<T> extends State<PickerField<T>> {
         ),
         if (o.trailing != null) ...[
           const SizedBox(width: 8),
-          Text(o.trailing!, style: TextStyle(fontSize: 13, color: o.trailingColor)),
+          Flexible(
+            child: Text(o.trailing!,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: 13, color: o.trailingColor)),
+          ),
         ],
         if (check) ...[
           const SizedBox(width: 8),

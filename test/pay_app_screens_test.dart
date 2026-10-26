@@ -101,7 +101,6 @@ void main() {
       await openEdit(tester, id);
       await reveal(tester, find.text('Chọn ứng dụng'));
       expect(find.text('Ứng dụng thanh toán (không bắt buộc)'), findsOneWidget);
-      expect(find.textContaining('ghi khoản chi xong sẽ mở ứng dụng này'), findsOneWidget);
 
       await tester.tap(find.text('Chọn ứng dụng'));
       await tester.pumpAndSettle();
@@ -153,8 +152,7 @@ void main() {
       final id = await addWallet(tester);
       await openEdit(tester, id);
       expect(find.text('Ứng dụng thanh toán (không bắt buộc)', skipOffstage: false), findsOneWidget);
-      await tester.tap(find.text('Tiền mặt'));
-      await tester.pump();
+      await pickSourceType(tester, 'Tiền mặt');
       expect(find.text('Ứng dụng thanh toán (không bắt buộc)', skipOffstage: false), findsNothing);
 
       await saveAndWaitClosed(tester, 'Lưu thay đổi', SourceFormScreen);
@@ -168,7 +166,7 @@ void main() {
       await openFromHost(tester, (c) => openSourceForm(c), SourceFormScreen);
       expect(find.text('Ứng dụng thanh toán (không bắt buộc)', skipOffstage: false), findsNothing);
       await tester.enterText(find.byType(TextField).at(0), 'VCB');
-      await tester.tap(find.text('Ngân hàng'));
+      await pickSourceType(tester, 'Ngân hàng');
       await tester.pump();
       await reveal(tester, find.text('Chọn ứng dụng'));
       await tester.tap(find.text('Chọn ứng dụng'));
