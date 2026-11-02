@@ -218,7 +218,7 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
     }
     setState(() => _saving = true);
     final now = DateTime.now().millisecondsSinceEpoch;
-    final note = _note.text.trim();
+    final note = singleLineNote(_note.text);
     final db = ExpenseDb.instance;
     if (_isEdit) {
       await db.update(widget.expense!.copyWith(
@@ -327,7 +327,14 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
           if (_sourcesLoaded) ..._buildSourcePicker(),
           const SizedBox(height: 22),
           const NoteLabel(),
-          TextBox(controller: _note, hint: 'Ví dụ: Phở bò sáng'),
+          TextBox(
+            controller: _note,
+            hint: 'Ví dụ: Phở bò sáng',
+            minLines: 1,
+            maxLines: 3,
+            maxLength: 500,
+            textInputAction: TextInputAction.done,
+          ),
           if (_isEdit) ...[
             const SizedBox(height: 16),
             TextButton.icon(

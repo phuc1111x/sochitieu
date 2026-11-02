@@ -1,7 +1,7 @@
 name: sochitieu
 description: "Sổ chi tiêu cá nhân – offline, sao lưu Google Drive."
 publish_to: 'none'
-version: 0.4.1+6
+version: 0.4.2+7
 
 environment:
   sdk: ^3.13.7

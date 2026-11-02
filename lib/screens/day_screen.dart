@@ -6,7 +6,7 @@ import '../models/expense.dart';
 import '../theme.dart';
 import '../utils/format.dart';
 import '../widgets/common.dart';
-import 'expense_form_screen.dart';
+import '../widgets/expense_detail_sheet.dart';
 
 /// Màn "Theo ngày". Vuốt sang phải = ngày trước, vuốt sang trái = ngày sau.
 class DayScreen extends StatefulWidget {
@@ -118,7 +118,7 @@ class _DayPage extends StatelessWidget {
             const SizedBox(height: 22),
             SectionHeader(
               title: 'Các khoản chi',
-              hint: data.items.isEmpty ? null : 'Chạm để sửa hoặc xoá',
+              hint: data.items.isEmpty ? null : 'Chạm để xem chi tiết',
             ),
             if (data.items.isEmpty)
               const EmptyState(text: 'Chưa có khoản chi nào trong ngày này.\nBấm "Thêm chi tiêu" để ghi lại.')
@@ -148,7 +148,7 @@ class _ExpenseTile extends StatelessWidget {
     // Dòng phụ "Danh mục · Nguồn"; không có ghi chú thì tên danh mục đã nằm ở dòng chính.
     final subtitle = [if (hasNote) cat.name, ?sourceName].join(' · ');
     return InkWell(
-      onTap: () => openExpenseForm(context, expense: expense),
+      onTap: () => showExpenseDetail(context, expense),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         child: Row(

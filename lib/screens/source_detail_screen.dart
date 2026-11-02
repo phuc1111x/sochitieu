@@ -7,6 +7,7 @@ import '../models/money_source.dart';
 import '../theme.dart';
 import '../utils/format.dart';
 import '../widgets/common.dart';
+import '../widgets/expense_detail_sheet.dart';
 import 'expense_form_screen.dart';
 import 'money_form_screen.dart';
 import 'source_form_screen.dart';
@@ -370,7 +371,7 @@ class _LedgerTile extends StatelessWidget {
     final db = ExpenseDb.instance;
     if (entry.kind == LedgerEntry.expense) {
       final expense = await db.expenseById(entry.refId);
-      if (expense != null && context.mounted) await openExpenseForm(context, expense: expense);
+      if (expense != null && context.mounted) await showExpenseDetail(context, expense);
     } else {
       final move = await db.moveById(entry.refId);
       if (move != null && context.mounted) await openMoneyForm(context, move: move);

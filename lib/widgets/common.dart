@@ -8,9 +8,14 @@ import '../theme.dart';
 
 /// Tải dữ liệu từ database và tự tải lại khi dữ liệu thay đổi.
 class DbBuilder<T> extends StatefulWidget {
-  const DbBuilder({super.key, required this.load, required this.builder});
+  const DbBuilder({super.key, required this.load, required this.builder, this.initialData});
 
   final Future<T> Function() load;
+
+  /// Dữ liệu đã tải sẵn để vẽ ngay khung hình đầu (không bị trống trong lúc chờ [load]).
+  /// Phải cùng dạng và cùng nội dung với kết quả [load] trả về: nó được hiện cho tới khi
+  /// lần tải đầu tiên xong.
+  final T? initialData;
   final Widget Function(BuildContext context, T data) builder;
 
   @override
@@ -42,6 +47,7 @@ class _DbBuilderState<T> extends State<DbBuilder<T>> {
   @override
   Widget build(BuildContext context) => FutureBuilder<T>(
         future: _future,
+        initialData: widget.initialData,
         builder: (context, snap) {
           if (snap.hasError) {
             return Center(child: Text('Lỗi đọc dữ liệu: ${snap.error}'));

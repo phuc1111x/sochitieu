@@ -203,7 +203,7 @@ class _MoneyFormScreenState extends State<MoneyFormScreen> {
       fromId: from?.id,
       toId: to.id,
       date: _date,
-      note: _note.text.trim(),
+      note: singleLineNote(_note.text),
       createdAt: widget.move?.createdAt ?? now,
       updatedAt: now,
     );
@@ -310,6 +310,10 @@ class _MoneyFormScreenState extends State<MoneyFormScreen> {
           const NoteLabel(),
           TextBox(
             controller: _note,
+            minLines: 1,
+            maxLines: 3,
+            maxLength: 500,
+            textInputAction: TextInputAction.done,
             hint: _cardPay
                 ? 'Ví dụ: Thanh toán sao kê tháng 10'
                 : _isMove

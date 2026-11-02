@@ -35,6 +35,13 @@ String formatFullDate(DateTime d) => '${weekdayName(d)}, ${formatDate(d)}';
 
 String formatTime(DateTime t) => '${two(t.hour)}:${two(t.minute)}';
 
+/// Ghi chú luôn một dòng: mỗi khoảng trắng có xuống dòng (ví dụ khi dán chữ nhiều dòng)
+/// được thay bằng một dấu cách, rồi bỏ khoảng trắng ở hai đầu ("Phở\n  Cà phê" → "Phở Cà phê").
+/// Xuống dòng gồm \n, \r, \v, \f, U+0085 (NEL), U+2028 và U+2029 (ngắt dòng/đoạn Unicode).
+String singleLineNote(String s) => s.replaceAll(_lineBreakRun, ' ').trim();
+
+final _lineBreakRun = RegExp('\\s*[\\n\\r\\v\\f\\u0085\\u2028\\u2029]\\s*');
+
 /// Khoá ngày lưu trong database, dạng yyyy-MM-dd (so sánh chuỗi = so sánh ngày).
 String dateKey(DateTime d) => '${d.year}-${two(d.month)}-${two(d.day)}';
 

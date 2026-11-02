@@ -311,12 +311,26 @@ class DateChip extends StatelessWidget {
 }
 
 /// Ô nhập chữ trắng bo góc dùng chung cho tên và ghi chú.
+/// Ghi chú dùng [minLines]/[maxLines] để xuống dòng khi chữ dài (quá [maxLines] dòng thì cuộn),
+/// nhưng bàn phím luôn là kiểu một dòng: phím Enter kết thúc nhập, không chèn dấu xuống dòng.
 class TextBox extends StatelessWidget {
-  const TextBox({super.key, required this.controller, required this.hint, this.maxLength = 100, this.onChanged});
+  const TextBox({
+    super.key,
+    required this.controller,
+    required this.hint,
+    this.maxLength = 100,
+    this.minLines,
+    this.maxLines = 1,
+    this.textInputAction,
+    this.onChanged,
+  });
 
   final TextEditingController controller;
   final String hint;
   final int maxLength;
+  final int? minLines;
+  final int maxLines;
+  final TextInputAction? textInputAction;
   final ValueChanged<String>? onChanged;
 
   @override
@@ -324,6 +338,10 @@ class TextBox extends StatelessWidget {
     return TextField(
       controller: controller,
       onChanged: onChanged,
+      keyboardType: TextInputType.text,
+      textInputAction: textInputAction,
+      minLines: minLines,
+      maxLines: maxLines,
       textCapitalization: TextCapitalization.sentences,
       maxLength: maxLength,
       decoration: InputDecoration(
