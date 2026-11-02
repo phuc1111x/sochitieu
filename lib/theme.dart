@@ -8,6 +8,9 @@ class AppColors {
   static const surface = Color(0xFFFFFFFF);
   static const ink = Color(0xFF16181D);
   static const muted = Color(0xFF5B6270);
+
+  /// Chữ đoạn văn dài (màn Chính sách quyền riêng tư): đậm hơn [muted], nhạt hơn [ink].
+  static const bodyText = Color(0xFF2A2F38);
   static const line = Color(0xFFE4E7EC);
   static const divider = Color(0xFFEEF0F3);
   static const track = Color(0xFFEEF0F3);

@@ -1,0 +1,6 @@
+# Trang web tạo tự động phải giữ xuống dòng LF, nếu không test so sánh với bản tạo sẽ hỏng.
+# Không dùng "docs/** text": logo PNG và font trong docs/ là file nhị phân, đổi xuống dòng sẽ làm hỏng chúng.
+docs/**/*.html text eol=lf
+docs/**/*.md text eol=lf
+docs/**/*.png binary
+docs/**/*.ttf binary

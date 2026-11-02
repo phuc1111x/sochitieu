@@ -1,7 +1,7 @@
 name: sochitieu
 description: "Sổ chi tiêu cá nhân – offline, sao lưu Google Drive."
 publish_to: 'none'
-version: 0.4.2+7
+version: 0.5.0+8
 
 environment:
   sdk: ^3.13.7
@@ -28,6 +28,11 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+
+  # Chính sách quyền riêng tư: cùng file với trang web (docs/privacy/).
+  assets:
+    - docs/privacy/vi.md
+    - docs/privacy/en.md
 
   fonts:
     - family: BeVietnamPro

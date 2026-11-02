@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../data/drive_backup.dart';
 import '../theme.dart';
 import '../utils/format.dart';
+import '../widgets/common.dart';
+import 'privacy_screen.dart';
 
 class BackupScreen extends StatefulWidget {
   const BackupScreen({super.key});
@@ -94,6 +96,8 @@ class _BackupScreenState extends State<BackupScreen> {
               ),
             ],
           ),
+          const SizedBox(height: 16),
+          const _PrivacyRow(),
         ],
       ),
     );
@@ -271,6 +275,73 @@ class _BackupScreenState extends State<BackupScreen> {
           child: const Text('Ngắt kết nối / đổi tài khoản'),
         ),
       ],
+    );
+  }
+}
+
+/// Dòng "Chính sách quyền riêng tư" ở cuối tab Sao lưu, luôn hiện (không phụ thuộc Drive).
+class _PrivacyRow extends StatefulWidget {
+  const _PrivacyRow();
+
+  @override
+  State<_PrivacyRow> createState() => _PrivacyRowState();
+}
+
+class _PrivacyRowState extends State<_PrivacyRow> {
+  /// Đang mở (hoặc đang hiện) màn chính sách: bỏ qua các lần bấm tiếp, để bấm nhanh hai lần
+  /// không mở hai màn chồng lên nhau.
+  bool _open = false;
+
+  Future<void> _openPolicy() async {
+    if (_open) return;
+    _open = true;
+    try {
+      await PrivacyScreen.open(context);
+    } finally {
+      _open = false;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppColors.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: const BorderSide(color: AppColors.line),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: _openPolicy,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 64),
+          child: const Padding(
+            padding: EdgeInsets.fromLTRB(16, 12, 12, 12),
+            child: Row(
+              children: [
+                TintedIcon(
+                  icon: Icons.description_outlined,
+                  fg: AppColors.neutral,
+                  bg: AppColors.neutralSoft,
+                  size: 40,
+                ),
+                SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Chính sách quyền riêng tư', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
+                      SizedBox(height: 2),
+                      Text('App lưu gì, lưu ở đâu, cách xoá', style: TextStyle(fontSize: 13, color: AppColors.muted)),
+                    ],
+                  ),
+                ),
+                Icon(Icons.chevron_right, size: 22, color: AppColors.muted),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
