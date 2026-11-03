@@ -73,10 +73,10 @@ class _BackupScreenState extends State<BackupScreen> {
             style: TextStyle(fontSize: 14, height: 1.5, color: AppColors.muted),
           ),
           const SizedBox(height: 16),
-          ValueListenableBuilder(
-            valueListenable: _backup.account,
-            builder: (context, account, _) =>
-                account == null ? _buildDisconnected() : _buildConnected(account.email),
+          ListenableBuilder(
+            listenable: Listenable.merge([_backup.connected, _backup.email]),
+            builder: (context, _) =>
+                _backup.connected.value ? _buildConnected(_backup.email.value) : _buildDisconnected(),
           ),
           const SizedBox(height: 16),
           const Row(
@@ -151,7 +151,7 @@ class _BackupScreenState extends State<BackupScreen> {
     );
   }
 
-  Widget _buildConnected(String email) {
+  Widget _buildConnected(String? email) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -175,10 +175,12 @@ class _BackupScreenState extends State<BackupScreen> {
                         children: [
                           const Text('Đã kết nối Google Drive',
                               style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-                          const SizedBox(height: 2),
-                          Text(email,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(fontSize: 13, color: AppColors.muted)),
+                          if (email != null) ...[
+                            const SizedBox(height: 2),
+                            Text(email,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(fontSize: 13, color: AppColors.muted)),
+                          ],
                         ],
                       ),
                     ),

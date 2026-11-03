@@ -4,6 +4,7 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:extension_google_sign_in_as_googleapis_auth/extension_google_sign_in_as_googleapis_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:google_sign_in_platform_interface/google_sign_in_platform_interface.dart';
 import 'package:googleapis/drive/v3.dart' as drive;
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -36,10 +37,16 @@ class DriveBackup {
   static const _kAuto = 'auto_backup';
   static const _kWifiOnly = 'wifi_only';
   static const _kConnected = 'drive_connected';
+  static const _kEmail = 'drive_email';
 
   final _signIn = GoogleSignIn.instance;
 
-  final account = ValueNotifier<GoogleSignInAccount?>(null);
+  /// Đã kết nối Drive hay chưa, đọc từ máy chứ không đăng nhập lại khi mở app.
+  final connected = ValueNotifier<bool>(false);
+
+  /// Email của lần kết nối hoặc đồng bộ thành công gần nhất (null với máy kết nối từ bản cũ,
+  /// cho tới lần sao lưu đầu tiên).
+  final email = ValueNotifier<String?>(null);
   final lastBackup = ValueNotifier<DateTime?>(null);
   final autoBackup = ValueNotifier<bool>(true);
   final wifiOnly = ValueNotifier<bool>(true);
@@ -50,27 +57,23 @@ class DriveBackup {
 
   Future<void> init() => _init ??= _doInit();
 
+  /// Cho test đọc lại cài đặt từ đầu như một lần mở app mới.
+  @visibleForTesting
+  void resetForTesting() => _init = null;
+
+  /// Không gọi Google nào ngoài `initialize`: mọi màn hình Google chỉ hiện khi người dùng bấm nút.
   Future<void> _doInit() async {
     final prefs = await SharedPreferences.getInstance();
     final last = prefs.getInt(_kLastBackup);
     lastBackup.value = last == null ? null : DateTime.fromMillisecondsSinceEpoch(last);
     autoBackup.value = prefs.getBool(_kAuto) ?? true;
     wifiOnly.value = prefs.getBool(_kWifiOnly) ?? true;
+    connected.value = prefs.getBool(_kConnected) ?? false;
+    email.value = prefs.getString(_kEmail);
     if (!isConfigured) return;
 
     try {
       await _signIn.initialize(serverClientId: googleWebClientId);
-      _signIn.authenticationEvents.listen((event) {
-        account.value = switch (event) {
-          GoogleSignInAuthenticationEventSignIn() => event.user,
-          GoogleSignInAuthenticationEventSignOut() => null,
-        };
-      }, onError: (Object e) => debugPrint('Google sign-in: $e'));
-      // Chỉ tự đăng nhập lại khi người dùng đã từng kết nối: nếu chưa,
-      // attemptLightweightAuthentication sẽ bật bảng chọn tài khoản mỗi lần mở app.
-      if (prefs.getBool(_kConnected) ?? false) {
-        account.value = await _signIn.attemptLightweightAuthentication();
-      }
     } catch (e) {
       debugPrint('Google sign-in init: $e');
     }
@@ -86,6 +89,12 @@ class DriveBackup {
     await (await SharedPreferences.getInstance()).setBool(_kWifiOnly, value);
   }
 
+  Future<void> _saveEmail(String? value) async {
+    if (value == null || value.isEmpty || value == email.value) return;
+    email.value = value;
+    await (await SharedPreferences.getInstance()).setString(_kEmail, value);
+  }
+
   Future<void> connect() async {
     await init();
     if (!isConfigured) {
@@ -93,9 +102,12 @@ class DriveBackup {
     }
     try {
       final user = await _signIn.authenticate(scopeHint: _scopes);
-      account.value = user;
       await user.authorizationClient.authorizeScopes(_scopes);
-      await (await SharedPreferences.getInstance()).setBool(_kConnected, true);
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_kConnected, true);
+      await prefs.setString(_kEmail, user.email);
+      email.value = user.email;
+      connected.value = true;
     } on GoogleSignInException catch (e) {
       if (e.code == GoogleSignInExceptionCode.canceled) {
         throw const BackupException('Đã huỷ đăng nhập Google.');
@@ -105,20 +117,62 @@ class DriveBackup {
   }
 
   Future<void> disconnect() async {
+    // Plugin Android chỉ thu hồi quyền của tài khoản đã xin quyền trong lần mở app này,
+    // nên xin lại (im lặng) trước để Google thật sự gỡ quyền Drive.
+    try {
+      await _authorize(interactive: false);
+    } catch (e) {
+      debugPrint('Drive authorization before disconnect: $e');
+    }
     await _signIn.disconnect();
-    account.value = null;
-    await (await SharedPreferences.getInstance()).setBool(_kConnected, false);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_kConnected, false);
+    await prefs.remove(_kEmail);
+    connected.value = false;
+    email.value = null;
+  }
+
+  /// Xin token Drive cho tài khoản đã lưu mà không cần đăng nhập lại. Khi `interactive` là false,
+  /// không bao giờ hiện màn hình nào: Google cần người dùng xác nhận thì trả về null.
+  /// Gọi thẳng lớp platform vì API của google_sign_in không cho gắn email khi chưa đăng nhập.
+  Future<GoogleSignInClientAuthorization?> _authorize({required bool interactive}) async {
+    await init();
+    final tokens = await GoogleSignInPlatform.instance.clientAuthorizationTokensForScopes(
+      ClientAuthorizationTokensForScopesParameters(
+        request: AuthorizationRequestDetails(
+          scopes: _scopes,
+          userId: null,
+          email: email.value,
+          promptIfUnauthorized: interactive,
+        ),
+      ),
+    );
+    return tokens == null ? null : GoogleSignInClientAuthorization(accessToken: tokens.accessToken);
   }
 
   Future<drive.DriveApi> _api({required bool interactive}) async {
-    final user = account.value;
-    if (user == null) throw const BackupException('Chưa kết nối Google Drive.');
-    var authorization = await user.authorizationClient.authorizationForScopes(_scopes);
-    if (authorization == null && interactive) {
-      authorization = await user.authorizationClient.authorizeScopes(_scopes);
+    if (!connected.value) throw const BackupException('Chưa kết nối Google Drive.');
+    final GoogleSignInClientAuthorization? authorization;
+    try {
+      authorization = await _authorize(interactive: interactive);
+    } on GoogleSignInException catch (e) {
+      if (e.code == GoogleSignInExceptionCode.canceled) {
+        throw const BackupException('Đã huỷ cấp quyền Google Drive.');
+      }
+      throw BackupException('Không lấy được quyền Google Drive (${e.code.name}).');
     }
     if (authorization == null) throw const BackupException('Cần cấp quyền Google Drive.');
     return drive.DriveApi(authorization.authClient(scopes: _scopes));
+  }
+
+  /// Cập nhật email theo tài khoản Drive vừa đồng bộ; lỗi ở đây không làm hỏng việc sao lưu.
+  Future<void> _refreshEmail(drive.DriveApi api) async {
+    try {
+      final about = await api.about.get($fields: 'user(emailAddress)');
+      await _saveEmail(about.user?.emailAddress);
+    } catch (e) {
+      debugPrint('Drive about: $e');
+    }
   }
 
   Future<String?> _findBackupFileId(drive.DriveApi api) async {
@@ -152,6 +206,7 @@ class DriveBackup {
 
     lastBackup.value = now;
     await (await SharedPreferences.getInstance()).setInt(_kLastBackup, now.millisecondsSinceEpoch);
+    await _refreshEmail(api);
   }
 
   /// Thay dữ liệu trên máy bằng bản sao lưu. Trả về số khoản chi đã khôi phục.
@@ -166,7 +221,9 @@ class DriveBackup {
       bytes.addAll(chunk);
     }
     final data = jsonDecode(utf8.decode(bytes)) as Map<String, dynamic>;
-    return importJson(ExpenseDb.instance, data);
+    final count = await importJson(ExpenseDb.instance, data);
+    await _refreshEmail(api);
+    return count;
   }
 
   static const _backupVersion = 2;
@@ -232,10 +289,11 @@ class DriveBackup {
     };
   }
 
-  /// Gọi khi mở app: tự sao lưu nếu đã bật và lần gần nhất cách đây hơn 1 ngày.
+  /// Gọi khi mở app: tự sao lưu ngầm nếu đã bật và lần gần nhất cách đây hơn 1 ngày.
+  /// Không hiện gì: thiếu quyền hay mất mạng thì bỏ qua, lần mở app sau thử lại.
   Future<void> maybeAutoBackup() async {
     await init();
-    if (!isConfigured || !autoBackup.value || account.value == null) return;
+    if (!isConfigured || !autoBackup.value || !connected.value) return;
     final last = lastBackup.value;
     if (last != null && DateTime.now().difference(last) < const Duration(days: 1)) return;
     if (wifiOnly.value) {

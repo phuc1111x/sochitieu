@@ -1,6 +1,6 @@
 # Chính sách quyền riêng tư
 
-**Sổ chi tiêu** · Có hiệu lực từ 02/11/2026
+**Sổ chi tiêu** · Có hiệu lực từ 03/11/2026
 
 ### 1. Về ứng dụng
 
@@ -28,7 +28,7 @@ Dữ liệu chỉ rời khỏi điện thoại trong hai trường hợp ở m�
 ### 4. Sao lưu lên Google Drive (tuỳ chọn)
 
 - Chỉ diễn ra khi bạn tự kết nối Google Drive trong tab Sao lưu và đăng nhập tài khoản Google.
-- Khi bạn đăng nhập, Google cho ứng dụng biết thông tin cơ bản của tài khoản: email, tên và ảnh đại diện. Ứng dụng chỉ hiện email trong tab Sao lưu để bạn biết đang dùng tài khoản nào. Ứng dụng không lưu và không gửi tên, email hay ảnh này đi đâu.
+- Khi bạn đăng nhập, Google cho ứng dụng biết thông tin cơ bản của tài khoản: email, tên và ảnh đại diện. Ứng dụng chỉ lưu email trên điện thoại để hiện trong tab Sao lưu, giúp bạn biết đang dùng tài khoản nào; email được cập nhật sau mỗi lần sao lưu hoặc khôi phục và bị xoá khỏi máy khi bạn ngắt kết nối. Ứng dụng không lưu tên và ảnh, và không gửi tên, email hay ảnh này đi đâu.
 - Ngoài đăng nhập, ứng dụng chỉ xin một quyền với Drive: **drive.appdata**. Quyền này chỉ cho phép tạo, đọc, cập nhật và xoá tệp trong một thư mục ẩn dành riêng cho Sổ chi tiêu trong Drive của bạn. Ứng dụng không thấy, không đọc và không sửa các tệp khác trong Drive.
 - Bản sao lưu là một tệp `sochitieu-backup.json` chứa các khoản chi, nguồn tiền, tiền vào, chuyển giữa các nguồn và điều chỉnh số dư. Mỗi lần sao lưu ghi đè lên tệp cũ; tệp được giữ cho đến khi bạn xoá (xem mục 8).
 - Tệp được gửi thẳng từ điện thoại đến Google qua kết nối mã hoá (HTTPS), không đi qua máy chủ nào khác.

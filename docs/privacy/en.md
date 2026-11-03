@@ -1,6 +1,6 @@
 # Privacy Policy
 
-**Sổ chi tiêu** · Effective 2 November 2026
+**Sổ chi tiêu** · Effective 3 November 2026
 
 ### 1. About the app
 
@@ -28,7 +28,7 @@ Your data leaves the phone only in the two cases described in sections 4 and 5.
 ### 4. Google Drive backup (optional)
 
 - Happens only if you connect Google Drive in the Backup tab and sign in with your Google account.
-- When you sign in, Google shares your account's basic profile with the app: email, name and profile picture. The app only shows the email in the Backup tab so you know which account is in use. It does not store or send your name, email or picture anywhere.
+- When you sign in, Google shares your account's basic profile with the app: email, name and profile picture. The app stores only the email, on your phone, to show it in the Backup tab so you know which account is in use; it is updated after each backup or restore and removed from the phone when you disconnect. The app does not store your name or picture, and does not send your name, email or picture anywhere.
 - Besides sign-in, the app requests a single Drive permission: **drive.appdata**. It only allows the app to create, read, update and delete files in a hidden folder reserved for Sổ chi tiêu in your Drive. The app cannot see, read or change any other file in your Drive.
 - The backup is one file, `sochitieu-backup.json`, containing your expenses, money sources, money in, transfers and balance adjustments. Each backup overwrites the previous one; the file is kept until you delete it (see section 8).
 - The file goes directly from your phone to Google over an encrypted connection (HTTPS), through no other server.

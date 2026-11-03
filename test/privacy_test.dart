@@ -91,8 +91,8 @@ nối dòng.
         expect(t, contains('sanchykids@gmail.com'));
         expect(t, contains('drive.appdata'));
       }
-      expect(_plain(vi.intro.single.items.single), 'Sổ chi tiêu · Có hiệu lực từ 02/11/2026');
-      expect(_plain(en.intro.single.items.single), 'Sổ chi tiêu · Effective 2 November 2026');
+      expect(_plain(vi.intro.single.items.single), 'Sổ chi tiêu · Có hiệu lực từ 03/11/2026');
+      expect(_plain(en.intro.single.items.single), 'Sổ chi tiêu · Effective 3 November 2026');
     });
 
     test('chỉ dùng phần Markdown mà bộ đọc hiểu, có tiêu đề #', () {
@@ -146,8 +146,8 @@ nối dòng.
       expect(html, contains('<article lang="en" data-l="en">'));
       expect(html, contains('Chính sách quyền riêng tư'));
       expect(html, contains('Privacy Policy'));
-      expect(html, contains('Có hiệu lực từ 02/11/2026'));
-      expect(html, contains('Effective 2 November 2026'));
+      expect(html, contains('Có hiệu lực từ 03/11/2026'));
+      expect(html, contains('Effective 3 November 2026'));
       expect(html, contains('href="https://myaccount.google.com/connections"'));
       expect(html, isNot(contains('connections."')));
       expect(html, contains('href="mailto:sanchykids@gmail.com"'));
